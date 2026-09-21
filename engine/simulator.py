@@ -31,6 +31,11 @@ CRIT_CHANCE = 1 / 24        # standard (non-high-crit-ratio) crit chance, Gen 6+
 HIGH_CRIT_CHANCE = 1 / 8
 FULL_PARALYSIS_CHANCE = 0.25   # chance a paralyzed Pokemon fails to act, Gen 3+
 
+# Enumeration forces every random outcome explicitly, so resolve_move does not
+# draw from this RNG in that path. Reuse one instead of constructing a new
+# random.Random(0) object for every enumerated branch.
+_ENUM_RNG = random.Random(0)
+
 
 # ===========================================================================
 # Deterministic single-path resolution (used by step())
@@ -466,7 +471,7 @@ def enumerate_turn_outcomes(
                 move = attacker.moves[a1["move_index"]]
                 resolve_move(
                     attacker, defender, move, s1.field,
-                    rng=random.Random(0), log=log1,
+                    rng=_ENUM_RNG, log=log1,
                     force_hit=hit1, force_crit=crit1, force_roll_index=roll1,
                     force_effect=effect1, force_full_para=para1,
                 )
@@ -501,7 +506,7 @@ def enumerate_turn_outcomes(
                     move = attacker.moves[a2["move_index"]]
                     resolve_move(
                         attacker, defender, move, s2.field,
-                        rng=random.Random(0), log=log2,
+                        rng=_ENUM_RNG, log=log2,
                         force_hit=hit2, force_crit=crit2, force_roll_index=roll2,
                         force_effect=effect2, force_full_para=para2,
                     )
