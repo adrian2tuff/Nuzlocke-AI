@@ -113,7 +113,7 @@ def resolve_move(
 
     # Protect blocks targeted moves after the protected Pokemon has acted.
     # It is a one-turn volatile condition, cleared at end of turn or switch.
-    if "protect" in defender.volatile:
+    if "protect" in defender.volatile and move.effect != "protect":
         log.append(f"{defender.display_name()} protected itself from {move.name}!")
         return
 
