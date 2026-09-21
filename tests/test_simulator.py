@@ -474,7 +474,7 @@ class TestBattleMechanics(unittest.TestCase):
 
         result = step(
             state,
-            {"type": "switch", "target_index": 1},
+            {"type": "move", "move_index": 3},  # Swords Dance; no damage
             {"type": "switch", "target_index": 1},
             random.Random(1),
         )
