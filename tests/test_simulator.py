@@ -379,6 +379,110 @@ class TestBattleMechanics(unittest.TestCase):
         self.assertGreater(p_flinch, 0.0)
         self.assertLess(p_flinch, 0.5)
 
+    def test_weather_boosts_and_weakens_damage(self):
+        state = fresh_state()
+        state.player_active = 1  # Rotom-Wash
+        state.enemy_active = 1   # Charizard
+        state.player_mon.moves.append(DataStore().build_move("hydro-pump"))
+        idx = len(state.player_mon.moves) - 1
+
+        neutral = enumerate_turn_outcomes(
+            state,
+            {"type": "move", "move_index": idx},
+            {"type": "switch", "target_index": 0},
+            damage_buckets=1,
+        )[0].state
+
+        rainy_state = state.clone()
+        rainy_state.field.weather = "rain"
+        rainy = enumerate_turn_outcomes(
+            rainy_state,
+            {"type": "move", "move_index": idx},
+            {"type": "switch", "target_index": 0},
+            damage_buckets=1,
+        )[0].state
+
+        neutral_damage = neutral.enemy_team[1].max_hp - neutral.enemy_team[1].current_hp
+        rain_damage = rainy.enemy_team[1].max_hp - rainy.enemy_team[1].current_hp
+        self.assertGreater(rain_damage, neutral_damage)
+
+    def test_weather_residual_damage_and_timer(self):
+        state = fresh_state()
+        state.field.weather = "sand"
+        state.field.weather_turns = 1
+        before = state.enemy_mon.current_hp
+
+        result = step(
+            state,
+            {"type": "switch", "target_index": 1},
+            {"type": "switch", "target_index": 1},
+            random.Random(1),
+        )
+
+        # Rotom-Wash is not Rock/Ground/Steel, so Sand should damage it.
+        self.assertLess(result.enemy_mon.current_hp, before)
+        self.assertIsNone(result.field.weather)
+        self.assertEqual(result.field.weather_turns, 0)
+
+    def test_weather_setter_sets_field(self):
+        state = fresh_state()
+        state.player_mon.moves.append(DataStore().build_move("rain-dance"))
+        idx = len(state.player_mon.moves) - 1
+        outcomes = enumerate_turn_outcomes(
+            state,
+            {"type": "move", "move_index": idx},
+            {"type": "switch", "target_index": 1},
+        )
+        self.assertEqual(outcomes[0].state.field.weather, "rain")
+        self.assertEqual(outcomes[0].state.field.weather_turns, 4)
+        # The turn in which Rain Dance is used counts as one of its five turns.
+
+    def test_terrain_boosts_grounded_attacker(self):
+        state = fresh_state()
+        state.player_active = 1  # Rotom-Wash
+        state.enemy_active = 1   # Charizard
+        state.player_mon.ability = None  # make Rotom grounded for terrain
+        state.player_mon.moves.append(DataStore().build_move("thunderbolt"))
+        idx = len(state.player_mon.moves) - 1
+
+        neutral = enumerate_turn_outcomes(
+            state,
+            {"type": "move", "move_index": idx},
+            {"type": "switch", "target_index": 0},
+            damage_buckets=1,
+        )[0].state
+
+        terrain_state = state.clone()
+        terrain_state.field.terrain = "electric"
+        terrain = enumerate_turn_outcomes(
+            terrain_state,
+            {"type": "move", "move_index": idx},
+            {"type": "switch", "target_index": 0},
+            damage_buckets=1,
+        )[0].state
+
+        neutral_damage = neutral.enemy_team[1].max_hp - neutral.enemy_team[1].current_hp
+        terrain_damage = terrain.enemy_team[1].max_hp - terrain.enemy_team[1].current_hp
+        self.assertGreater(terrain_damage, neutral_damage)
+
+    def test_grassy_terrain_heals_grounded_pokemon(self):
+        state = fresh_state()
+        state.field.terrain = "grassy"
+        state.field.terrain_turns = 1
+        state.player_mon.current_hp -= 20
+        before = state.player_mon.current_hp
+
+        result = step(
+            state,
+            {"type": "switch", "target_index": 1},
+            {"type": "switch", "target_index": 1},
+            random.Random(1),
+        )
+
+        self.assertGreater(result.player_mon.current_hp, before)
+        self.assertIsNone(result.field.terrain)
+        self.assertEqual(result.field.terrain_turns, 0)
+
     def test_explosion_faints_user(self):
         state = fresh_state()
         state.player_active = 1
