@@ -389,7 +389,7 @@ class TestBattleMechanics(unittest.TestCase):
         neutral = enumerate_turn_outcomes(
             state,
             {"type": "move", "move_index": idx},
-            {"type": "switch", "target_index": 0},
+            {"type": "switch", "target_index": 1},
             damage_buckets=1,
         )[0].state
 
@@ -398,7 +398,7 @@ class TestBattleMechanics(unittest.TestCase):
         rainy = enumerate_turn_outcomes(
             rainy_state,
             {"type": "move", "move_index": idx},
-            {"type": "switch", "target_index": 0},
+            {"type": "switch", "target_index": 1},
             damage_buckets=1,
         )[0].state
 
