@@ -68,6 +68,8 @@ def damage_rolls(
         modifier *= STAB_MULTIPLIER
     if is_crit:
         modifier *= CRIT_MULTIPLIER
+    if attacker.item == "life-orb":
+        modifier *= 1.3
 
     type_mult = type_effectiveness(move.type, defender.species.types)
     modifier *= type_mult
