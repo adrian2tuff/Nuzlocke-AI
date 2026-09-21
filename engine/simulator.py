@@ -669,17 +669,17 @@ def enumerate_turn_outcomes(
         fanned: list[tuple[float, bool, bool, int | None, bool, int | None]] = []
         for p, hit, crit, roll_idx in move_branches:
             for hit_count_p, hit_count in hit_counts:
-            if not hit or move.effect is None:
-                fanned.append((p * hit_count_p, hit, crit, roll_idx, False, hit_count))
-                continue
-            chance = move.effect_chance / 100
-            if chance >= 1.0:
-                fanned.append((p * hit_count_p, hit, crit, roll_idx, True, hit_count))
-            elif chance <= 0.0:
-                fanned.append((p, hit, crit, roll_idx, False))
-            else:
-                fanned.append((p * hit_count_p * chance, hit, crit, roll_idx, True, hit_count))
-                fanned.append((p * hit_count_p * (1 - chance), hit, crit, roll_idx, False, hit_count))
+                if not hit or move.effect is None:
+                    fanned.append((p * hit_count_p, hit, crit, roll_idx, False, hit_count))
+                    continue
+                chance = move.effect_chance / 100
+                if chance >= 1.0:
+                    fanned.append((p * hit_count_p, hit, crit, roll_idx, True, hit_count))
+                elif chance <= 0.0:
+                    fanned.append((p * hit_count_p, hit, crit, roll_idx, False, hit_count))
+                else:
+                    fanned.append((p * hit_count_p * chance, hit, crit, roll_idx, True, hit_count))
+                    fanned.append((p * hit_count_p * (1 - chance), hit, crit, roll_idx, False, hit_count))
 
         # Fan out again over full-paralysis, if applicable: a paralyzed
         # attacker either fails to act entirely (its own branch, whatever
@@ -691,7 +691,7 @@ def enumerate_turn_outcomes(
             out.append((FULL_PARALYSIS_CHANCE, True, False, None, False, True, None, None))
             return out
 
-        return [(p, hit, crit, roll_idx, effect, False, None, None) for (p, hit, crit, roll_idx, effect, hit_count) in fanned]
+        return [(p, hit, crit, roll_idx, effect, False, None, hit_count) for (p, hit, crit, roll_idx, effect, hit_count) in fanned]
 
     def enumerate_for_order(order: list[str], order_weight: float) -> list[Outcome]:
         first, second = order[0], order[1]
