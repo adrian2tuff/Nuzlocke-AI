@@ -253,6 +253,18 @@ class TestBattleMechanics(unittest.TestCase):
             {"type": "switch", "target_index": 0},
         )
         incoming = outcomes[0].state.player_mon
+        # Rotom-Wash has Levitate in the real roster, so first verify that
+        # Levitate correctly prevents Spikes, then disable it to isolate the
+        # Spikes layer-damage calculation.
+        self.assertEqual(incoming.species.name, "rotom-wash")
+        self.assertEqual(incoming.current_hp, incoming.max_hp)
+        state.player_team[1].ability = None
+        outcomes = enumerate_turn_outcomes(
+            state,
+            {"type": "switch", "target_index": 1},
+            {"type": "switch", "target_index": 0},
+        )
+        incoming = outcomes[0].state.player_mon
         expected = incoming.max_hp - int(incoming.max_hp / 4)
         self.assertEqual(incoming.current_hp, expected)
 
@@ -269,6 +281,7 @@ class TestBattleMechanics(unittest.TestCase):
 
     def test_toxic_spikes_poison_and_badly_poison_at_two_layers(self):
         state = fresh_state()
+        state.player_team[1].ability = None
         state.field.hazards["player"]["toxic_spikes"] = 1
         outcomes = enumerate_turn_outcomes(
             state,
@@ -278,6 +291,7 @@ class TestBattleMechanics(unittest.TestCase):
         self.assertEqual(outcomes[0].state.player_mon.status, "poison")
 
         state = fresh_state()
+        state.player_team[1].ability = None
         state.field.hazards["player"]["toxic_spikes"] = 2
         outcomes = enumerate_turn_outcomes(
             state,
@@ -311,6 +325,7 @@ class TestBattleMechanics(unittest.TestCase):
     def test_recoil_damage_is_applied_from_damage_dealt(self):
         state = fresh_state()
         store = DataStore()
+        state.player_active = 1  # Rotom-Wash, avoiding a guaranteed KO
         state.player_mon.moves.append(store.build_move("double-edge"))
         idx = len(state.player_mon.moves) - 1
         before = state.player_mon.current_hp
