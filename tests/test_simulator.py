@@ -27,6 +27,7 @@ Each test below maps to a concrete thing that was either broken or fragile:
 import random
 import unittest
 
+from engine.mechanics import type_effectiveness
 from environment.loader import DataStore
 from engine.state import BattleState
 from engine.simulator import step, enumerate_turn_outcomes, summarize_risk
@@ -202,6 +203,32 @@ class TestEnumeration(unittest.TestCase):
             # resulting HP as a signal of who acted first.
             first_movers.add(result.player_mon.current_hp)
         self.assertGreater(len(first_movers), 1, "speed tie never resolved differently across 40 seeds")
+
+
+class TestBattleMechanics(unittest.TestCase):
+    def test_stealth_rock_sets_hazard_and_damages_switch_in(self):
+        state = fresh_state()
+        set_rocks = {"type": "move", "move_index": 6}
+        enemy_action = {"type": "move", "move_index": 0}
+        outcomes = enumerate_turn_outcomes(state, set_rocks, enemy_action)
+        self.assertTrue(all(o.state.field.hazards["player"]["stealth_rock"] for o in outcomes))
+
+        switched = outcomes[0].state
+        switch = {"type": "switch", "target_index": 1}
+        enemy = {"type": "move", "move_index": 0}
+        switch_outcomes = enumerate_turn_outcomes(switched, switch, enemy)
+        for o in switch_outcomes:
+            incoming = o.state.player_mon
+            expected = incoming.max_hp - max(1, int(incoming.max_hp * type_effectiveness("rock", incoming.species.types) / 8))
+            self.assertEqual(incoming.current_hp, expected)
+
+    def test_explosion_faints_user(self):
+        state = fresh_state()
+        state.player_active = 1
+        from engine.pokemon import Move
+        state.player_mon.moves.append(Move(name="explosion", type="normal", category="physical", power=250, accuracy=100, pp=5, effect="self_faint", effect_chance=100, effect_data={"target": "self"}))
+        result = step(state, {"type": "move", "move_index": len(state.player_mon.moves)-1}, {"type": "move", "move_index": 0}, random.Random(1))
+        self.assertTrue(result.player_mon.is_fainted)
 
 
 class TestInvariants(unittest.TestCase):
