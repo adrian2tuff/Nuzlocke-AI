@@ -22,5 +22,12 @@
   "swords-dance":    {"type": "normal",   "category": "status",   "power": 0,   "accuracy": null, "pp": 20, "effect": "stat_change", "effect_data": {"stat": "atk", "stages": 2, "target": "self"}},
   "recover":         {"type": "normal",   "category": "status",   "power": 0,   "accuracy": null, "pp": 10, "effect": "heal", "effect_data": {"fraction": 0.5, "target": "self"}},
   "toxic":           {"type": "poison",   "category": "status",   "power": 0,   "accuracy": 90,  "pp": 10, "effect": "toxic", "effect_chance": 100, "effect_data": {"target": "other"}},
-  "quiver-dance":    {"type": "bug",      "category": "status",   "power": 0,   "accuracy": null, "pp": 20, "effect": "stat_change", "effect_data": {"stat": "spa", "stages": 1, "target": "self"}}
+  "quiver-dance":    {"type": "bug",      "category": "status",   "power": 0,   "accuracy": null, "pp": 20, "effect": "stat_change", "effect_data": {"stat": "spa", "stages": 1, "target": "self"}},
+  "rain-dance":       {"type": "water",    "category": "status",   "power": 0,   "accuracy": null, "pp": 5,  "effect": "weather", "effect_chance": 100, "effect_data": {"weather": "rain", "turns": 5, "target": "field"}},
+  "sunny-day":        {"type": "fire",     "category": "status",   "power": 0,   "accuracy": null, "pp": 5,  "effect": "weather", "effect_chance": 100, "effect_data": {"weather": "sun", "turns": 5, "target": "field"}},
+  "sandstorm":        {"type": "rock",     "category": "status",   "power": 0,   "accuracy": null, "pp": 5,  "effect": "weather", "effect_chance": 100, "effect_data": {"weather": "sand", "turns": 5, "target": "field"}},
+  "hail":             {"type": "ice",      "category": "status",   "power": 0,   "accuracy": null, "pp": 5,  "effect": "weather", "effect_chance": 100, "effect_data": {"weather": "hail", "turns": 5, "target": "field"}},
+  "electric-terrain": {"type": "electric", "category": "status",  "power": 0,   "accuracy": null, "pp": 10, "effect": "terrain", "effect_chance": 100, "effect_data": {"terrain": "electric", "turns": 5, "target": "field"}},
+  "grassy-terrain":   {"type": "grass",    "category": "status",   "power": 0,   "accuracy": null, "pp": 10, "effect": "terrain", "effect_chance": 100, "effect_data": {"terrain": "grassy", "turns": 5, "target": "field"}},
+  "psychic-terrain":  {"type": "psychic",  "category": "status",   "power": 0,   "accuracy": null, "pp": 10, "effect": "terrain", "effect_chance": 100, "effect_data": {"terrain": "psychic", "turns": 5, "target": "field"}}
 }
