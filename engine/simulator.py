@@ -291,6 +291,14 @@ class Outcome:
     description: str
 
 
+class _NullLog:
+    """Drop-in log sink for search enumeration, where narration is unused."""
+    __slots__ = ()
+
+    def append(self, _message: str) -> None:
+        pass
+
+
 def _bucket_roll_indices(n_rolls: int, n_buckets: int | None) -> list[tuple[float, int]]:
     """
     Reduce the 16 exact damage-roll indices down to `n_buckets` representative
@@ -370,6 +378,7 @@ def enumerate_turn_outcomes(
     *,
     max_branches: int = 5000,
     damage_buckets: int | None = None,
+    include_descriptions: bool = True,
 ) -> list[Outcome]:
     """
     Full exact-under-the-modeled-randomness probability distribution over
@@ -447,7 +456,7 @@ def enumerate_turn_outcomes(
 
         for p1, hit1, crit1, roll1, effect1, para1 in branches_for(state, first):
             s1 = state.clone()
-            log1: list[str] = []
+            log1 = [] if include_descriptions else _NullLog()
             a1 = actions[first]
             if a1["type"] == "switch":
                 _apply_switch(s1, first, a1["target_index"], log1)
@@ -468,7 +477,10 @@ def enumerate_turn_outcomes(
                 _apply_status_damage(s1.player_mon, log1)
                 _apply_status_damage(s1.enemy_mon, log1)
                 s1.turn += 1
-                outs.append(Outcome(order_weight * p1, s1, "; ".join(log1)))
+                outs.append(Outcome(
+                    order_weight * p1, s1,
+                    "; ".join(log1) if include_descriptions else "",
+                ))
                 continue
 
             # Second mover's branches are computed from s1 -- the state
@@ -477,7 +489,7 @@ def enumerate_turn_outcomes(
             # stat/status-changing first moves evaluate correctly.
             for p2, hit2, crit2, roll2, effect2, para2 in branches_for(s1, second):
                 s2 = s1.clone()
-                log2: list[str] = list(log1)
+                log2 = list(log1) if include_descriptions else _NullLog()
                 a2 = actions[second]
                 if s2.active_mon(second).is_fainted:
                     pass
@@ -499,7 +511,10 @@ def enumerate_turn_outcomes(
                     _apply_status_damage(s2.enemy_mon, log2)
                 s2.turn += 1
 
-                outs.append(Outcome(order_weight * p1 * p2, s2, "; ".join(log2)))
+                outs.append(Outcome(
+                    order_weight * p1 * p2, s2,
+                    "; ".join(log2) if include_descriptions else "",
+                ))
 
                 if len(outs) > max_branches:
                     raise RuntimeError(
