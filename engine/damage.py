@@ -68,6 +68,29 @@ def damage_rolls(
         modifier *= STAB_MULTIPLIER
     if is_crit:
         modifier *= CRIT_MULTIPLIER
+
+    weather = field.weather if hasattr(field, "weather") else field.get("weather")
+    if weather == "rain":
+        if move.type == "water":
+            modifier *= 1.5
+        elif move.type == "fire":
+            modifier *= 0.5
+    elif weather == "sun":
+        if move.type == "fire":
+            modifier *= 1.5
+        elif move.type == "water":
+            modifier *= 0.5
+
+    terrain = field.terrain if hasattr(field, "terrain") else field.get("terrain")
+    grounded = "flying" not in attacker.species.types and attacker.ability != "levitate"
+    if grounded:
+        if terrain == "electric" and move.type == "electric":
+            modifier *= 1.3
+        elif terrain == "grassy" and move.type == "grass":
+            modifier *= 1.3
+        elif terrain == "psychic" and move.type == "psychic":
+            modifier *= 1.3
+
     if attacker.item == "life-orb":
         modifier *= 1.3
 
