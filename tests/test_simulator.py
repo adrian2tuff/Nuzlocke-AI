@@ -543,6 +543,35 @@ class TestBattleMechanics(unittest.TestCase):
         self.assertEqual(result.player_mon.protect_streak, 0)
 
 
+    def test_multi_hit_move_uses_multiple_hits_and_stops_on_ko(self):
+        state = fresh_state()
+        state.player_mon.moves.append(DataStore().build_move("rock-blast"))
+        idx = len(state.player_mon.moves) - 1
+        result = step(
+            state,
+            {"type": "move", "move_index": idx},
+            {"type": "switch", "target_index": 1},
+            random.Random(1),
+        )
+        hits = [x for x in result.log if "Hit " in x and "rock-blast" in x]
+        self.assertGreaterEqual(len(hits), 2)
+        self.assertLessEqual(len(hits), 5)
+
+    def test_multi_hit_enumeration_branches_hit_count(self):
+        state = fresh_state()
+        state.player_mon.moves.append(DataStore().build_move("rock-blast"))
+        idx = len(state.player_mon.moves) - 1
+        outcomes = enumerate_turn_outcomes(
+            state,
+            {"type": "move", "move_index": idx},
+            {"type": "switch", "target_index": 1},
+            damage_buckets=1,
+        )
+        self.assertGreaterEqual(len(outcomes), 2)
+        descriptions = {o.description for o in outcomes}
+        self.assertTrue(any("Hit 2/" in d for d in descriptions))
+        self.assertTrue(any("Hit 5/" in d for d in descriptions))
+
     def test_explosion_faints_user(self):
         state = fresh_state()
         state.player_active = 1
