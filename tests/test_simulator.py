@@ -308,6 +308,58 @@ class TestBattleMechanics(unittest.TestCase):
         self.assertIsNone(result.player_mon.status)
         self.assertEqual(result.field.hazards["player"]["toxic_spikes"], 0)
 
+    def test_recoil_damage_is_applied_from_damage_dealt(self):
+        state = fresh_state()
+        store = DataStore()
+        state.player_mon.moves.append(store.build_move("double-edge"))
+        idx = len(state.player_mon.moves) - 1
+        before = state.player_mon.current_hp
+        outcomes = enumerate_turn_outcomes(
+            state,
+            {"type": "move", "move_index": idx},
+            {"type": "switch", "target_index": 1},
+            damage_buckets=1,
+        )
+        result = outcomes[0].state
+        self.assertLess(result.player_mon.current_hp, before)
+        self.assertGreater(result.enemy_mon.current_hp, 0)
+
+    def test_drain_heals_from_damage_dealt(self):
+        state = fresh_state()
+        store = DataStore()
+        state.player_active = 1  # Rotom-Wash
+        state.player_mon.current_hp -= 40
+        before = state.player_mon.current_hp
+        state.player_mon.moves.append(store.build_move("drain-punch"))
+        idx = len(state.player_mon.moves) - 1
+        outcomes = enumerate_turn_outcomes(
+            state,
+            {"type": "move", "move_index": idx},
+            {"type": "switch", "target_index": 1},
+            damage_buckets=1,
+        )
+        result = outcomes[0].state
+        self.assertGreater(result.player_mon.current_hp, before)
+        self.assertLessEqual(result.player_mon.current_hp, result.player_mon.max_hp)
+
+    def test_flinch_is_applied_as_a_secondary_effect(self):
+        state = fresh_state()
+        # Use the real Iron Head data so the test covers the same move metadata
+        # that the engine/search will encounter.
+        state.player_mon.moves.append(DataStore().build_move("iron-head"))
+        idx = len(state.player_mon.moves) - 1
+        outcomes = enumerate_turn_outcomes(
+            state,
+            {"type": "move", "move_index": idx},
+            {"type": "move", "move_index": 0},
+        )
+        p_flinch = sum(
+            o.probability for o in outcomes
+            if "flinch" in o.state.enemy_mon.volatile
+        )
+        self.assertGreater(p_flinch, 0.0)
+        self.assertLess(p_flinch, 0.5)
+
     def test_explosion_faints_user(self):
         state = fresh_state()
         state.player_active = 1
