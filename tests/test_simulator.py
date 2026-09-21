@@ -603,7 +603,8 @@ class TestBattleMechanics(unittest.TestCase):
     def test_sleep_enumeration_branches_wake_timing(self):
         state = fresh_state()
         state.enemy_mon.status = "sleep"
-        state.enemy_mon.status_turns = 1
+        # Zero remaining sleep turns means the Pokemon wakes before acting.
+        state.enemy_mon.status_turns = 0
         outcomes = enumerate_turn_outcomes(
             state,
             {"type": "switch", "target_index": 1},
