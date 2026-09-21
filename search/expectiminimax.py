@@ -37,9 +37,6 @@ wrong silently breaks correctness rather than erroring:
     the literature) to stay exact rather than approximate, and that's more
     machinery than Phase 2 needs -- this version stays simple and provably
     correct, at the cost of leaving some prunable work on the table.
-  - A separate turn-outcome cache reuses identical `enumerate_turn_outcomes`
-    results across the search. Outcomes are not mutated by the search, so this
-    cache preserves the exact same probabilities and states.
   - `search_best_action()`'s own top-level loop is deliberately left
     UNPRUNED, so every action gets a real, exact-for-its-depth score in the
     ranked output -- pruning there would leave some rows as bounds rather
@@ -70,7 +67,6 @@ class SearchResult:
     ranked: list[ActionResult] = dc_field(default_factory=list)
     nodes_evaluated: int = 0
     cache_hits: int = 0
-    outcome_cache_hits: int = 0
     depth: int = 0
 
 
@@ -84,12 +80,7 @@ def _pokemon_key(mon) -> tuple:
     )
 
 
-def _action_key(action: dict) -> tuple:
-    """Hashable action identity for the turn-outcome cache."""
-    return tuple(sorted(action.items()))
-
-
-def _state_key(state: BattleState, depth: int, damage_buckets: int | None) -> tuple:
+def _state_key(state: BattleState, depth: int, damage_buckets: int) -> tuple:
     """Key a battle position without including its narration/log."""
     field = state.field
     return (
@@ -136,8 +127,6 @@ def _value(
     nodes: list[int],
     transposition: dict[tuple, float],
     cache_hits: list[int],
-    outcome_cache: dict[tuple, list],
-    outcome_cache_hits: list[int],
 ) -> float:
     key = _state_key(state, depth, damage_buckets)
     if key in transposition:
@@ -176,33 +165,14 @@ def _value(
         worst = float("inf")
         local_beta = beta
         for ea in enemy_actions:
-            outcome_key = (
-                _state_key(state, 0, damage_buckets),
-                _action_key(pa),
-                _action_key(ea),
+            outcomes = enumerate_turn_outcomes(
+                state, pa, ea, damage_buckets=damage_buckets,
             )
-            if outcome_key in outcome_cache:
-                outcome_cache_hits[0] += 1
-                outcomes = outcome_cache[outcome_key]
-            else:
-                outcomes = enumerate_turn_outcomes(
-                    state, pa, ea, damage_buckets=damage_buckets,
-                )
-                outcome_cache[outcome_key] = outcomes
             # NOTE: each recursive _value() call below starts with fresh
             # (-inf, +inf) bounds -- see module docstring on why bounds
             # aren't threaded across this expectation/RNG boundary.
             expected = sum(
-                o.probability * _value(
-                    o.state,
-                    depth - 1,
-                    damage_buckets,
-                    nodes,
-                    transposition,
-                    cache_hits,
-                    outcome_cache,
-                    outcome_cache_hits,
-                )
+                o.probability * _value(o.state, depth - 1, damage_buckets, nodes, transposition, cache_hits)
                 for o in outcomes
             )
             worst = min(worst, expected)
@@ -243,26 +213,14 @@ def search_best_action(
     enemy_actions = state.legal_actions("enemy")
     nodes = [0]
     cache_hits = [0]
-    outcome_cache_hits = [0]
     transposition: dict[tuple, float] = {}
-    outcome_cache: dict[tuple, list] = {}
 
     results: list[ActionResult] = []
     for pa in player_actions:
         worst_value = float("inf")
         worst_enemy_action = None
         for ea in enemy_actions:
-            outcome_key = (
-                _state_key(state, 0, damage_buckets),
-                _action_key(pa),
-                _action_key(ea),
-            )
-            if outcome_key in outcome_cache:
-                outcome_cache_hits[0] += 1
-                outcomes = outcome_cache[outcome_key]
-            else:
-                outcomes = enumerate_turn_outcomes(state, pa, ea, damage_buckets=damage_buckets)
-                outcome_cache[outcome_key] = outcomes
+            outcomes = enumerate_turn_outcomes(state, pa, ea, damage_buckets=damage_buckets)
             expected = sum(
                 o.probability * _value(
                     o.state,
@@ -271,8 +229,6 @@ def search_best_action(
                     nodes,
                     transposition,
                     cache_hits,
-                    outcome_cache,
-                    outcome_cache_hits,
                 )
                 for o in outcomes
             )
@@ -298,7 +254,6 @@ def search_best_action(
         ranked=results,
         nodes_evaluated=nodes[0],
         cache_hits=cache_hits[0],
-        outcome_cache_hits=outcome_cache_hits[0],
         depth=depth,
     )
 
