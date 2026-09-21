@@ -507,6 +507,32 @@ class TestBattleMechanics(unittest.TestCase):
         )
         self.assertNotIn("protect", protected.player_mon.volatile)
 
+    def test_consecutive_protect_becomes_less_likely(self):
+        state = fresh_state()
+        state.player_mon.moves.append(DataStore().build_move("protect"))
+        idx = len(state.player_mon.moves) - 1
+        first = step(state, {"type": "move", "move_index": idx},
+                      {"type": "switch", "target_index": 1}, random.Random(1))
+        self.assertEqual(first.player_mon.protect_streak, 1)
+        outcomes = enumerate_turn_outcomes(
+            first, {"type": "move", "move_index": idx},
+            {"type": "switch", "target_index": 1},
+        )
+        success = sum(o.probability for o in outcomes if "protected itself!" in o.description)
+        failure = sum(o.probability for o in outcomes if "failed to protect" in o.description)
+        self.assertAlmostEqual(success, 0.5)
+        self.assertAlmostEqual(failure, 0.5)
+        self.assertTrue(any(o.state.player_mon.protect_streak == 2 for o in outcomes))
+        self.assertTrue(any(o.state.player_mon.protect_streak == 0 for o in outcomes))
+
+    def test_non_protect_move_resets_protect_streak(self):
+        result = step(
+            first, {"type": "move", "move_index": 0},
+            {"type": "switch", "target_index": 1}, random.Random(1),
+        )
+        self.assertEqual(result.player_mon.protect_streak, 0)
+
+
     def test_explosion_faints_user(self):
         state = fresh_state()
         state.player_active = 1
