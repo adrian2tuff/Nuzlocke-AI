@@ -74,8 +74,8 @@ def _pokemon_key(mon) -> tuple:
     """Hashable battle-relevant snapshot for the transposition table."""
     return (
         mon.species.name, mon.level, mon.current_hp, mon.status,
-        mon.status_turns, tuple(sorted(mon.volatile)),
-        tuple(sorted(mon.stat_stages.items())),
+        mon.status_turns, frozenset(mon.volatile),
+        tuple(mon.stat_stages.values()),
         tuple(mv.pp for mv in mon.moves), mon.ability, mon.item,
     )
 
@@ -88,9 +88,22 @@ def _state_key(state: BattleState, depth: int, damage_buckets: int) -> tuple:
         tuple(_pokemon_key(mon) for mon in state.player_team),
         tuple(_pokemon_key(mon) for mon in state.enemy_team),
         field.weather, field.weather_turns, field.terrain, field.terrain_turns,
-        field.trick_room_turns, repr(field.hazards), repr(field.screens),
+        field.trick_room_turns,
+        (
+            field.hazards["player"]["stealth_rock"],
+            field.hazards["player"]["spikes"],
+            field.hazards["player"]["toxic_spikes"],
+            field.hazards["enemy"]["stealth_rock"],
+            field.hazards["enemy"]["spikes"],
+            field.hazards["enemy"]["toxic_spikes"],
+        ),
+        (
+            field.screens["player"]["reflect"],
+            field.screens["player"]["light_screen"],
+            field.screens["enemy"]["reflect"],
+            field.screens["enemy"]["light_screen"],
+        ),
     )
-
 
 def _quick_action_heuristic(state: BattleState, side: str, action: dict) -> float:
     """
