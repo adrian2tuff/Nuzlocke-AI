@@ -94,6 +94,7 @@ def resolve_move(
     force_full_para: bool | None = None,
     force_protect_success: bool | None = None,
     force_hit_count: int | None = None,
+    force_status_resolution: str | None = None,
     attacker_side: str | None = None,
 ) -> None:
     """Mutates attacker/defender/field in place. All randomness is drawn from
@@ -130,16 +131,41 @@ def resolve_move(
         log.append(f"{defender.display_name()} protected itself from {move.name}!")
         return
 
+    # Gen VI+ sleep/freeze resolution. Enumeration supplies an explicit
+    # outcome; step() rolls the same randomness directly.
+    if force_status_resolution == "sleep":
+        attacker.status_turns = max(0, attacker.status_turns - 1)
+        log.append(f"{attacker.display_name()} is fast asleep!")
+        return
+    if force_status_resolution == "wake":
+        attacker.status = None
+        attacker.status_turns = 0
+        log.append(f"{attacker.display_name()} woke up!")
+    elif force_status_resolution == "frozen":
+        log.append(f"{attacker.display_name()} is frozen solid!")
+        return
+    elif force_status_resolution == "thaw":
+        attacker.status = None
+        attacker.status_turns = 0
+        log.append(f"{attacker.display_name()} thawed out!")
+    else:
+        if attacker.status == "sleep":
+            if attacker.status_turns > 0:
+                attacker.status_turns -= 1
+                log.append(f"{attacker.display_name()} is fast asleep!")
+                return
+            attacker.status = None
+            log.append(f"{attacker.display_name()} woke up!")
+        elif attacker.status == "freeze":
+            if rng.random() >= 0.20:
+                log.append(f"{attacker.display_name()} is frozen solid!")
+                return
+            attacker.status = None
+            log.append(f"{attacker.display_name()} thawed out!")
+
     # Electric Terrain prevents grounded Pokemon from falling asleep.
     if attacker.status == "sleep" and field.terrain == "electric" and "flying" not in attacker.species.types and attacker.ability != "levitate":
         log.append(f"{attacker.display_name()} is protected from sleep by Electric Terrain!")
-        return
-
-    if attacker.status == "freeze":
-        log.append(f"{attacker.display_name()} is frozen solid!")
-        return
-    if attacker.status == "sleep":
-        log.append(f"{attacker.display_name()} is fast asleep!")
         return
     if "flinch" in attacker.volatile:
         attacker.volatile.discard("flinch")
@@ -163,7 +189,7 @@ def resolve_move(
 
     if move.category == "status":
         log.append(f"{attacker.display_name()} used {move.name}!")
-        _apply_move_effect(move, attacker, defender, log, field=field, attacker_side=attacker_side)
+        _apply_move_effect(move, attacker, defender, log, field=field, attacker_side=attacker_side, rng=rng)
         return
 
     is_crit = force_crit if force_crit is not None else (rng.random() < _crit_chance(move))
@@ -215,13 +241,14 @@ def resolve_move(
 
         # Per-hit secondary effects can trigger independently.
         if move.effect and (force_effect if force_effect is not None else rng.random() * 100 < move.effect_chance):
-            _apply_move_effect(move, attacker, defender, log, damage_dealt=dmg)
+            _apply_move_effect(move, attacker, defender, log, damage_dealt=dmg, rng=rng)
 
     return
 
 def _apply_move_effect(
     move: Move, attacker: Pokemon, defender: Pokemon, log: list[str],
     *, field=None, attacker_side: str | None = None, damage_dealt: int = 0,
+    rng: random.Random | None = None,
 ) -> None:
     eff = move.effect
     data = move.effect_data
@@ -242,6 +269,18 @@ def _apply_move_effect(
         attacker.current_hp = min(attacker.max_hp, attacker.current_hp + healing)
         if healing:
             log.append(f"{attacker.display_name()} restored {healing} HP!")
+        return
+    if eff == "sleep":
+        if target.status is None:
+            target.status = "sleep"
+            target.status_turns = (rng.randint(1, 3) if rng is not None else 1)
+            log.append(f"{target.display_name()} fell asleep for {target.status_turns} turn(s)!")
+        return
+    if eff == "freeze":
+        if target.status is None:
+            target.status = "freeze"
+            target.status_turns = 0
+            log.append(f"{target.display_name()} was frozen solid!")
         return
     if eff == "flinch":
         if not defender.is_fainted:
@@ -633,13 +672,13 @@ def enumerate_turn_outcomes(
     """
     actions = {"player": player_action, "enemy": enemy_action}
 
-    def branches_for(acting_state: BattleState, side: str) -> list[tuple[float, bool, bool, int | None, bool, bool, bool | None, int | None]]:
+    def branches_for(acting_state: BattleState, side: str) -> list[tuple[float, bool, bool, int | None, bool, bool, bool | None, int | None, str | None]]:
         """(probability, hit, crit, roll_index, effect_triggers, full_para)
         branches, computed against `acting_state` -- i.e. always call this
         AFTER any earlier action this turn has already been applied."""
         action = actions[side]
         if action["type"] == "switch" or acting_state.active_mon(side).is_fainted:
-            return [(1.0, True, False, None, False, False, None, None)]
+            return [(1.0, True, False, None, False, False, None, None, None)]
 
         attacker = acting_state.active_mon(side)
         other = acting_state.other_side(side)
@@ -648,10 +687,10 @@ def enumerate_turn_outcomes(
         if move.effect == "protect":
             chance = 1.0 / (2 ** attacker.protect_streak)
             if chance >= 1.0:
-                return [(1.0, True, False, None, True, False, True, 1)]
+                return [(1.0, True, False, None, True, False, True, 1, None)]
             return [
-                (chance, True, False, None, True, False, True, 1),
-                (1.0 - chance, True, False, None, False, False, False, 0),
+                (chance, True, False, None, True, False, True, 1, None),
+                (1.0 - chance, True, False, None, False, False, False, 0, None),
             ]
         # Standard 2-5-hit moves use 35/35/15/15% for 2/3/4/5 hits.
         if move.hits_min != 1 or move.hits_max != 1:
@@ -662,6 +701,16 @@ def enumerate_turn_outcomes(
                 hit_counts = [(1 / count, n) for n in range(move.hits_min, move.hits_max + 1)]
         else:
             hit_counts = [(1.0, None)]
+
+        if attacker.status == "sleep":
+            if attacker.status_turns > 0:
+                return [(1.0, True, False, None, False, False, None, None, "sleep")]
+            return [(1.0, True, False, None, False, False, None, None, "wake")]
+        if attacker.status == "freeze":
+            return [
+                (0.20, True, False, None, False, False, None, None, "thaw"),
+                (0.80, True, False, None, False, False, None, None, "frozen"),
+            ]
 
         move_branches = _single_move_branches(attacker, defender, move, acting_state.field, damage_buckets=damage_buckets)
 
@@ -686,18 +735,18 @@ def enumerate_turn_outcomes(
         # it would have done is irrelevant) or acts normally with the
         # remaining probability mass.
         if attacker.status == "paralysis":
-            out = [(p * (1 - FULL_PARALYSIS_CHANCE), hit, crit, roll_idx, effect, False, None, hit_count)
+            out = [(p * (1 - FULL_PARALYSIS_CHANCE), hit, crit, roll_idx, effect, False, None, hit_count, None)
                    for (p, hit, crit, roll_idx, effect, hit_count) in fanned]
-            out.append((FULL_PARALYSIS_CHANCE, True, False, None, False, True, None, None))
+            out.append((FULL_PARALYSIS_CHANCE, True, False, None, False, True, None, None, None))
             return out
 
-        return [(p, hit, crit, roll_idx, effect, False, None, hit_count) for (p, hit, crit, roll_idx, effect, hit_count) in fanned]
+        return [(p, hit, crit, roll_idx, effect, False, None, hit_count, None) for (p, hit, crit, roll_idx, effect, hit_count) in fanned]
 
     def enumerate_for_order(order: list[str], order_weight: float) -> list[Outcome]:
         first, second = order[0], order[1]
         outs: list[Outcome] = []
 
-        for p1, hit1, crit1, roll1, effect1, para1, protect1, hits1 in branches_for(state, first):
+        for p1, hit1, crit1, roll1, effect1, para1, protect1, hits1, status1 in branches_for(state, first):
             s1 = state.clone()
             log1 = [] if include_descriptions else _NullLog()
             a1 = actions[first]
@@ -711,7 +760,7 @@ def enumerate_turn_outcomes(
                     attacker, defender, move, s1.field,
                     rng=_ENUM_RNG, log=log1,
                     force_hit=hit1, force_crit=crit1, force_roll_index=roll1,
-                    force_effect=effect1, force_full_para=para1, force_protect_success=protect1, force_hit_count=hits1, attacker_side=first,
+                    force_effect=effect1, force_full_para=para1, force_protect_success=protect1, force_hit_count=hits1, force_status_resolution=status1, attacker_side=first,
                 )
 
             first_wiped = s1.team_wiped(s1.other_side(first))
@@ -730,7 +779,7 @@ def enumerate_turn_outcomes(
             # AFTER the first move resolved -- not from the original
             # `state`. This is what makes switches-into-immunity and
             # stat/status-changing first moves evaluate correctly.
-            for p2, hit2, crit2, roll2, effect2, para2, protect2, hits2 in branches_for(s1, second):
+            for p2, hit2, crit2, roll2, effect2, para2, protect2, hits2, status2 in branches_for(s1, second):
                 s2 = s1.clone()
                 log2 = list(log1) if include_descriptions else _NullLog()
                 a2 = actions[second]
@@ -746,7 +795,7 @@ def enumerate_turn_outcomes(
                         attacker, defender, move, s2.field,
                         rng=_ENUM_RNG, log=log2,
                         force_hit=hit2, force_crit=crit2, force_roll_index=roll2,
-                        force_effect=effect2, force_full_para=para2, force_protect_success=protect2, force_hit_count=hits2, attacker_side=second,
+                        force_effect=effect2, force_full_para=para2, force_protect_success=protect2, force_hit_count=hits2, force_status_resolution=status2, attacker_side=second,
                     )
 
                 if not s2.is_terminal():
