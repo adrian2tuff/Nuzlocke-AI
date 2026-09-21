@@ -122,6 +122,10 @@ def resolve_move(
         log.append(f"{attacker.display_name()} flinched and couldn't move!")
         return
 
+    if move.type == "ground" and defender.ability == "levitate":
+        log.append(f"{defender.display_name()} is immune to {move.name} because of Levitate!")
+        return
+
     if attacker.status == "paralysis":
         full_para = force_full_para if force_full_para is not None else (rng.random() < FULL_PARALYSIS_CHANCE)
         if full_para:
@@ -144,6 +148,21 @@ def resolve_move(
     dmg = rolls[roll_idx]
 
     defender.current_hp = max(0, defender.current_hp - dmg)
+
+    if move.makes_contact and defender.ability == "rough-skin" and dmg > 0:
+        rough_damage = max(1, defender.max_hp // 8)
+        attacker.current_hp = max(0, attacker.current_hp - rough_damage)
+        log.append(f"{attacker.display_name()} was hurt by Rough Skin! (-{rough_damage} HP)")
+        if attacker.is_fainted:
+            log.append(f"{attacker.display_name()} fainted!")
+
+    if attacker.item == "life-orb" and dmg > 0:
+        life_damage = max(1, attacker.max_hp // 10)
+        attacker.current_hp = max(0, attacker.current_hp - life_damage)
+        log.append(f"{attacker.display_name()} lost HP from Life Orb! (-{life_damage} HP)")
+        if attacker.is_fainted:
+            log.append(f"{attacker.display_name()} fainted!")
+
     log.append(
         f"{attacker.display_name()} used {move.name}! "
         f"{'A critical hit! ' if is_crit else ''}"
