@@ -111,6 +111,11 @@ def resolve_move(
     if attacker.is_fainted:
         return
 
+    # Electric Terrain prevents grounded Pokemon from falling asleep.
+    if attacker.status == "sleep" and field.terrain == "electric" and "flying" not in attacker.species.types and attacker.ability != "levitate":
+        log.append(f"{attacker.display_name()} is protected from sleep by Electric Terrain!")
+        return
+
     if attacker.status == "freeze":
         log.append(f"{attacker.display_name()} is frozen solid!")
         return
@@ -205,6 +210,20 @@ def _apply_move_effect(
         if not defender.is_fainted:
             defender.volatile.add("flinch")
             log.append(f"{defender.display_name()} flinched!")
+        return
+    if eff == "weather":
+        if field is not None:
+            weather = data["weather"]
+            field.weather = weather
+            field.weather_turns = data.get("turns", 5)
+            log.append(f"The weather changed to {weather}!")
+        return
+    if eff == "terrain":
+        if field is not None:
+            terrain = data["terrain"]
+            field.terrain = terrain
+            field.terrain_turns = data.get("turns", 5)
+            log.append(f"The battlefield became {terrain} terrain!")
         return
     if eff == "stealth_rock":
         if field is not None and attacker_side is not None:
@@ -352,6 +371,43 @@ def _apply_switch(state: BattleState, side: str, target_index: int, log: list[st
                 log.append(f"{incoming.display_name()} was afflicted with {incoming.status} by Toxic Spikes!")
 
 
+def _apply_end_of_turn_field(state: BattleState, log) -> None:
+    """Apply weather/terrain residual effects and decrement their timers."""
+    field = state.field
+
+    if field.weather in ("sand", "hail"):
+        for mon in (state.player_mon, state.enemy_mon):
+            if mon.is_fainted:
+                continue
+            immune = ("rock", "ground", "steel") if field.weather == "sand" else ("ice",)
+            if not any(t in immune for t in mon.species.types):
+                damage = max(1, mon.max_hp // 16)
+                mon.current_hp = max(0, mon.current_hp - damage)
+                log.append(f"{mon.display_name()} was hurt by {field.weather}! (-{damage} HP)")
+
+    if field.terrain == "grassy":
+        for mon in (state.player_mon, state.enemy_mon):
+            if mon.is_fainted:
+                continue
+            grounded = "flying" not in mon.species.types and mon.ability != "levitate"
+            if grounded:
+                healing = max(1, mon.max_hp // 16)
+                mon.current_hp = min(mon.max_hp, mon.current_hp + healing)
+                log.append(f"{mon.display_name()} restored {healing} HP from Grassy Terrain!")
+
+    if field.weather is not None:
+        field.weather_turns = max(0, field.weather_turns - 1)
+        if field.weather_turns == 0:
+            log.append(f"The {field.weather} weather faded.")
+            field.weather = None
+
+    if field.terrain is not None:
+        field.terrain_turns = max(0, field.terrain_turns - 1)
+        if field.terrain_turns == 0:
+            log.append(f"The {field.terrain} terrain faded.")
+            field.terrain = None
+
+
 def step(
     state: BattleState,
     player_action: dict,
@@ -391,6 +447,7 @@ def step(
     if not new_state.is_terminal():
         _apply_status_damage(new_state.player_mon, log)
         _apply_status_damage(new_state.enemy_mon, log)
+        _apply_end_of_turn_field(new_state, log)
         for mon in (new_state.player_mon, new_state.enemy_mon):
             if not mon.is_fainted and mon.item == "leftovers":
                 healing = max(1, mon.max_hp // 16)
@@ -630,6 +687,7 @@ def enumerate_turn_outcomes(
                 if not s2.is_terminal():
                     _apply_status_damage(s2.player_mon, log2)
                     _apply_status_damage(s2.enemy_mon, log2)
+                    _apply_end_of_turn_field(s2, log2)
                 s2.turn += 1
 
                 outs.append(Outcome(
