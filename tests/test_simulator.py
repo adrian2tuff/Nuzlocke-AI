@@ -31,6 +31,7 @@ from engine.mechanics import type_effectiveness
 from environment.loader import DataStore
 from engine.state import BattleState
 from engine.simulator import step, enumerate_turn_outcomes, summarize_risk
+from engine.damage import damage_rolls
 
 
 def fresh_state() -> BattleState:
@@ -386,24 +387,15 @@ class TestBattleMechanics(unittest.TestCase):
         state.player_mon.moves.append(DataStore().build_move("hydro-pump"))
         idx = len(state.player_mon.moves) - 1
 
-        neutral = enumerate_turn_outcomes(
-            state,
-            {"type": "move", "move_index": idx},
-            {"type": "switch", "target_index": 1},
-            damage_buckets=1,
-        )[0].state
-
+        neutral_damage = max(damage_rolls(
+            state.player_mon, state.enemy_mon, state.player_mon.moves[idx], state.field
+        ))
         rainy_state = state.clone()
         rainy_state.field.weather = "rain"
-        rainy = enumerate_turn_outcomes(
-            rainy_state,
-            {"type": "move", "move_index": idx},
-            {"type": "switch", "target_index": 1},
-            damage_buckets=1,
-        )[0].state
-
-        neutral_damage = neutral.enemy_team[1].max_hp - neutral.enemy_team[1].current_hp
-        rain_damage = rainy.enemy_team[1].max_hp - rainy.enemy_team[1].current_hp
+        rain_damage = max(damage_rolls(
+            rainy_state.player_mon, rainy_state.enemy_mon,
+            rainy_state.player_mon.moves[idx], rainy_state.field
+        ))
         self.assertGreater(rain_damage, neutral_damage)
 
     def test_weather_residual_damage_and_timer(self):
