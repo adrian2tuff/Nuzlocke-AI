@@ -111,6 +111,12 @@ def resolve_move(
     if attacker.is_fainted:
         return
 
+    # Protect blocks targeted moves after the protected Pokemon has acted.
+    # It is a one-turn volatile condition, cleared at end of turn or switch.
+    if "protect" in defender.volatile:
+        log.append(f"{defender.display_name()} protected itself from {move.name}!")
+        return
+
     # Electric Terrain prevents grounded Pokemon from falling asleep.
     if attacker.status == "sleep" and field.terrain == "electric" and "flying" not in attacker.species.types and attacker.ability != "levitate":
         log.append(f"{attacker.display_name()} is protected from sleep by Electric Terrain!")
@@ -224,6 +230,10 @@ def _apply_move_effect(
             field.terrain = terrain
             field.terrain_turns = data.get("turns", 5)
             log.append(f"The battlefield became {terrain} terrain!")
+        return
+    if eff == "protect":
+        attacker.volatile.add("protect")
+        log.append(f"{attacker.display_name()} protected itself!")
         return
     if eff == "stealth_rock":
         if field is not None and attacker_side is not None:
@@ -400,6 +410,10 @@ def _apply_end_of_turn_field(state: BattleState, log) -> None:
         if field.weather_turns == 0:
             log.append(f"The {field.weather} weather faded.")
             field.weather = None
+
+    # Protect only lasts for the current turn.
+    for mon in (state.player_mon, state.enemy_mon):
+        mon.volatile.discard("protect")
 
     if field.terrain is not None:
         field.terrain_turns = max(0, field.terrain_turns - 1)
