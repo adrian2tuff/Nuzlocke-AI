@@ -222,7 +222,14 @@ def search_best_action(
         for ea in enemy_actions:
             outcomes = enumerate_turn_outcomes(state, pa, ea, damage_buckets=damage_buckets)
             expected = sum(
-                o.probability * _value(o.state, depth - 1, damage_buckets, nodes)
+                o.probability * _value(
+                    o.state,
+                    depth - 1,
+                    damage_buckets,
+                    nodes,
+                    transposition,
+                    cache_hits,
+                )
                 for o in outcomes
             )
             if expected < worst_value:
