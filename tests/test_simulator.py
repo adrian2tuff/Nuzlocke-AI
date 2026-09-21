@@ -437,24 +437,15 @@ class TestBattleMechanics(unittest.TestCase):
         state.player_mon.moves.append(DataStore().build_move("thunderbolt"))
         idx = len(state.player_mon.moves) - 1
 
-        neutral = enumerate_turn_outcomes(
-            state,
-            {"type": "move", "move_index": idx},
-            {"type": "switch", "target_index": 0},
-            damage_buckets=1,
-        )[0].state
-
+        neutral_damage = max(damage_rolls(
+            state.player_mon, state.enemy_mon, state.player_mon.moves[idx], state.field
+        ))
         terrain_state = state.clone()
         terrain_state.field.terrain = "electric"
-        terrain = enumerate_turn_outcomes(
-            terrain_state,
-            {"type": "move", "move_index": idx},
-            {"type": "switch", "target_index": 0},
-            damage_buckets=1,
-        )[0].state
-
-        neutral_damage = neutral.enemy_team[1].max_hp - neutral.enemy_team[1].current_hp
-        terrain_damage = terrain.enemy_team[1].max_hp - terrain.enemy_team[1].current_hp
+        terrain_damage = max(damage_rolls(
+            terrain_state.player_mon, terrain_state.enemy_mon,
+            terrain_state.player_mon.moves[idx], terrain_state.field
+        ))
         self.assertGreater(terrain_damage, neutral_damage)
 
     def test_grassy_terrain_heals_grounded_pokemon(self):
