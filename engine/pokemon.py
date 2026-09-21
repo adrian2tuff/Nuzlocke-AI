@@ -125,8 +125,15 @@ class Pokemon:
 
     def clone(self) -> "Pokemon":
         """Deep-enough copy for simulating hypothetical futures without mutating the real state."""
+        # Species/stat templates and IV/EV dictionaries are immutable during
+        # simulation, so they can be shared. Only battle-mutable fields need
+        # fresh copies. This is substantially cheaper than deepcopy().
         import copy
-        return copy.deepcopy(self)
+        clone = copy.copy(self)
+        clone.moves = [copy.copy(move) for move in self.moves]
+        clone.stat_stages = self.stat_stages.copy()
+        clone.volatile = self.volatile.copy()
+        return clone
 
     def display_name(self) -> str:
         return self.nickname or self.species.name
