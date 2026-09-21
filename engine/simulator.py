@@ -166,6 +166,18 @@ def _apply_move_effect(
             field.hazards[attacker_side]["stealth_rock"] = True
             log.append("Pointed stones float in the air around the opposing team!")
         return
+    if eff == "spikes":
+        if field is not None and attacker_side is not None:
+            current = field.hazards[attacker_side]["spikes"]
+            field.hazards[attacker_side]["spikes"] = min(3, current + 1)
+            log.append(f"Spikes were scattered around the opposing team's feet! ({field.hazards[attacker_side]['spikes']} layer(s))")
+        return
+    if eff == "toxic_spikes":
+        if field is not None and attacker_side is not None:
+            current = field.hazards[attacker_side]["toxic_spikes"]
+            field.hazards[attacker_side]["toxic_spikes"] = min(2, current + 1)
+            log.append(f"Toxic Spikes were scattered around the opposing team! ({field.hazards[attacker_side]['toxic_spikes']} layer(s))")
+        return
     target = attacker if data.get("target") == "self" else defender
     if eff == "stat_change":
         _apply_stat_change(target, data["stat"], data["stages"], log)
@@ -251,14 +263,47 @@ def _apply_switch(state: BattleState, side: str, target_index: int, log: list[st
     state.set_active_index(side, target_index)
     log.append(f"{'You' if side == 'player' else 'Opponent'} sent out {incoming.display_name()}!")
 
-    if state.field.hazards[side]["stealth_rock"] and not incoming.is_fainted:
+    hazards = state.field.hazards[side]
+    if incoming.is_fainted:
+        return
+
+    # Stealth Rock deals 1/8 max HP, modified by Rock effectiveness.
+    if hazards["stealth_rock"]:
         multiplier = type_effectiveness("rock", incoming.species.types)
         if multiplier > 0:
             damage = max(1, int(incoming.max_hp * multiplier / 8))
             incoming.current_hp = max(0, incoming.current_hp - damage)
             log.append(f"{incoming.display_name()} was hurt by Stealth Rock! (-{damage} HP)")
-            if incoming.is_fainted:
-                log.append(f"{incoming.display_name()} fainted!")
+
+    if incoming.is_fainted:
+        log.append(f"{incoming.display_name()} fainted!")
+        return
+
+    # Spikes only affect grounded Pokemon. One, two, and three layers deal
+    # 1/8, 1/6, and 1/4 of max HP respectively.
+    if "flying" not in incoming.species.types:
+        layers = hazards["spikes"]
+        if layers:
+            fractions = {1: 1/8, 2: 1/6, 3: 1/4}
+            damage = max(1, int(incoming.max_hp * fractions[layers]))
+            incoming.current_hp = max(0, incoming.current_hp - damage)
+            log.append(f"{incoming.display_name()} was hurt by Spikes! (-{damage} HP)")
+
+    if incoming.is_fainted:
+        log.append(f"{incoming.display_name()} fainted!")
+        return
+
+    # Toxic Spikes only affect grounded Pokemon. Poison types absorb the
+    # hazard when they switch in, removing all Toxic Spikes on that side.
+    if "flying" not in incoming.species.types:
+        toxic_layers = hazards["toxic_spikes"]
+        if toxic_layers:
+            if "poison" in incoming.species.types:
+                hazards["toxic_spikes"] = 0
+                log.append(f"{incoming.display_name()} absorbed the Toxic Spikes!")
+            elif incoming.status is None:
+                incoming.status = "toxic" if toxic_layers >= 2 else "poison"
+                log.append(f"{incoming.display_name()} was afflicted with {incoming.status} by Toxic Spikes!")
 
 
 def step(
