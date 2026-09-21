@@ -155,11 +155,12 @@ class TestEnumeration(unittest.TestCase):
         ea = {"type": "move", "move_index": 0}
 
         outcomes = enumerate_turn_outcomes(state, pa, ea)
-        # "Failed to act" shows up as: enemy took no damage from this move
-        # this turn (garchomp's earthquake never landed).
+        # Full-paralysis is explicitly narrated by resolve_move. Looking
+        # at final HP is unreliable because the enemy can move first after
+        # paralysis lowers the attacker's Speed.
         p_failed_to_act = sum(
             o.probability for o in outcomes
-            if o.state.enemy_mon.current_hp == o.state.enemy_mon.max_hp
+            if "paralyzed and can't move" in o.description
         )
         self.assertAlmostEqual(p_failed_to_act, 0.25, delta=0.05)
 
@@ -401,10 +402,13 @@ class TestInvariants(unittest.TestCase):
     def test_fainted_pokemon_cannot_act_and_deals_no_damage(self):
         state = fresh_state()
         state.player_mon.current_hp = 0  # force a faint
-        pa = {"type": "switch", "target_index": 1}  # forced switch, only legal action
-        ea = {"type": "move", "move_index": 0}
+        # Give the fainted Pokemon a move action deliberately. The engine
+        # should skip it entirely; the opponent switches instead, so there
+        # is no unrelated damage/recoil to obscure the invariant.
+        pa = {"type": "move", "move_index": 0}
+        ea = {"type": "switch", "target_index": 1}
         result = step(state, pa, ea, random.Random(1))
-        # enemy's hp should be untouched by the fainted mon (it never got to act)
+        self.assertEqual(result.enemy_active, 1)
         self.assertEqual(result.enemy_mon.current_hp, result.enemy_mon.max_hp)
 
     def test_legal_actions_forces_switch_when_active_fainted(self):
