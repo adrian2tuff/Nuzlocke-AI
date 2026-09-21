@@ -59,6 +59,8 @@ class DataStore:
             effect=t.get("effect"),
             effect_chance=t.get("effect_chance", 100),
             effect_data=t.get("effect_data", {}),
+            hits_min=t.get("hits_min", 1),
+            hits_max=t.get("hits_max", 1),
         )
 
     def build_pokemon(self, spec: dict) -> Pokemon:
