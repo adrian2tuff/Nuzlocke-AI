@@ -466,6 +466,47 @@ class TestBattleMechanics(unittest.TestCase):
         self.assertIsNone(result.field.terrain)
         self.assertEqual(result.field.terrain_turns, 0)
 
+    def test_protect_blocks_attacks(self):
+        state = fresh_state()
+        state.player_mon.moves.append(DataStore().build_move("protect"))
+        idx = len(state.player_mon.moves) - 1
+        before = state.player_mon.current_hp
+        result = step(
+            state,
+            {"type": "move", "move_index": idx},
+            {"type": "move", "move_index": 0},
+            random.Random(1),
+        )
+        self.assertEqual(result.player_mon.current_hp, before)
+        self.assertTrue(any("protected itself!" in entry for entry in result.log))
+
+    def test_protect_has_priority_over_normal_move(self):
+        state = fresh_state()
+        state.player_active = 1
+        state.enemy_active = 0
+        state.player_mon.moves.append(DataStore().build_move("protect"))
+        idx = len(state.player_mon.moves) - 1
+        result = step(
+            state,
+            {"type": "move", "move_index": idx},
+            {"type": "move", "move_index": 0},
+            random.Random(1),
+        )
+        self.assertEqual(result.player_mon.current_hp, result.player_mon.max_hp)
+        self.assertTrue(any("protected itself!" in entry for entry in result.log))
+
+    def test_protect_expires_at_end_of_turn(self):
+        state = fresh_state()
+        state.player_mon.moves.append(DataStore().build_move("protect"))
+        idx = len(state.player_mon.moves) - 1
+        protected = step(
+            state,
+            {"type": "move", "move_index": idx},
+            {"type": "switch", "target_index": 1},
+            random.Random(1),
+        )
+        self.assertNotIn("protect", protected.player_mon.volatile)
+
     def test_explosion_faints_user(self):
         state = fresh_state()
         state.player_active = 1
