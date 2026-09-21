@@ -213,32 +213,6 @@ def resolve_move(
             _apply_move_effect(move, attacker, defender, log, damage_dealt=dmg)
 
     return
-        rough_damage = max(1, defender.max_hp // 8)
-        attacker.current_hp = max(0, attacker.current_hp - rough_damage)
-        log.append(f"{attacker.display_name()} was hurt by Rough Skin! (-{rough_damage} HP)")
-        if attacker.is_fainted:
-            log.append(f"{attacker.display_name()} fainted!")
-
-    if attacker.item == "life-orb" and dmg > 0:
-        life_damage = max(1, attacker.max_hp // 10)
-        attacker.current_hp = max(0, attacker.current_hp - life_damage)
-        log.append(f"{attacker.display_name()} lost HP from Life Orb! (-{life_damage} HP)")
-        if attacker.is_fainted:
-            log.append(f"{attacker.display_name()} fainted!")
-
-    log.append(
-        f"{attacker.display_name()} used {move.name}! "
-        f"{'A critical hit! ' if is_crit else ''}"
-        f"{defender.display_name()} took {dmg} damage "
-        f"({defender.current_hp}/{defender.max_hp} HP left)."
-    )
-
-    if defender.is_fainted:
-        log.append(f"{defender.display_name()} fainted!")
-
-    if move.effect and (force_effect if force_effect is not None else rng.random() * 100 < move.effect_chance):
-        _apply_move_effect(move, attacker, defender, log, damage_dealt=dmg)
-
 
 def _apply_move_effect(
     move: Move, attacker: Pokemon, defender: Pokemon, log: list[str],
