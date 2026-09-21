@@ -68,7 +68,6 @@ class Pokemon:
         if self.current_hp == -1:
             self.current_hp = self._max_hp
 
-    # ------------------------------------------------------------------
     def _compute_stats(self) -> None:
         base = self.species.base_stats
         iv = self.ivs
@@ -124,13 +123,32 @@ class Pokemon:
         return max(0.0, self.current_hp / self.max_hp)
 
     def clone(self) -> "Pokemon":
-        """Deep-enough copy for simulating hypothetical futures without mutating the real state."""
-        # Species/stat templates and IV/EV dictionaries are immutable during
-        # simulation, so they can be shared. Only battle-mutable fields need
-        # fresh copies. This is substantially cheaper than deepcopy().
-        import copy
-        clone = copy.copy(self)
-        clone.moves = [copy.copy(move) for move in self.moves]
+        """Copy only battle-mutable data without invoking copy's generic machinery."""
+        clone = object.__new__(Pokemon)
+        clone.__dict__ = self.__dict__.copy()
+
+        # Move PP is mutable during simulation, so every hypothetical Pokemon
+        # needs independent Move objects. Other Move fields are immutable.
+        clone.moves = [
+            Move(
+                name=mv.name,
+                type=mv.type,
+                category=mv.category,
+                power=mv.power,
+                accuracy=mv.accuracy,
+                pp=mv.pp,
+                priority=mv.priority,
+                crit_ratio=mv.crit_ratio,
+                effect=mv.effect,
+                effect_chance=mv.effect_chance,
+                effect_data=mv.effect_data,
+                makes_contact=mv.makes_contact,
+                sound_based=mv.sound_based,
+                hits_min=mv.hits_min,
+                hits_max=mv.hits_max,
+            )
+            for mv in self.moves
+        ]
         clone.stat_stages = self.stat_stages.copy()
         clone.volatile = self.volatile.copy()
         return clone
