@@ -526,6 +526,16 @@ class TestBattleMechanics(unittest.TestCase):
         self.assertTrue(any(o.state.player_mon.protect_streak == 0 for o in outcomes))
 
     def test_non_protect_move_resets_protect_streak(self):
+        state = fresh_state()
+        state.player_mon.moves.append(DataStore().build_move("protect"))
+        idx = len(state.player_mon.moves) - 1
+
+        first = step(
+            state, {"type": "move", "move_index": idx},
+            {"type": "switch", "target_index": 1}, random.Random(1),
+        )
+        self.assertEqual(first.player_mon.protect_streak, 1)
+
         result = step(
             first, {"type": "move", "move_index": 0},
             {"type": "switch", "target_index": 1}, random.Random(1),
