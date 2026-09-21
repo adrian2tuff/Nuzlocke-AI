@@ -193,7 +193,16 @@ def _value(
             # (-inf, +inf) bounds -- see module docstring on why bounds
             # aren't threaded across this expectation/RNG boundary.
             expected = sum(
-                o.probability * _value(o.state, depth - 1, damage_buckets, nodes, transposition, cache_hits)
+                o.probability * _value(
+                    o.state,
+                    depth - 1,
+                    damage_buckets,
+                    nodes,
+                    transposition,
+                    cache_hits,
+                    outcome_cache,
+                    outcome_cache_hits,
+                )
                 for o in outcomes
             )
             worst = min(worst, expected)
