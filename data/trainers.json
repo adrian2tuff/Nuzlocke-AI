@@ -1,0 +1,60 @@
+{
+  "rival_1": {
+    "team": [
+      {
+        "species": "nidoking",
+        "level": 45,
+        "nature": "adamant",
+        "ability": "sheer-force",
+        "item": "life-orb",
+        "ivs": {"hp": 31, "atk": 31, "def": 31, "spa": 31, "spd": 31, "spe": 31},
+        "evs": {"hp": 4, "atk": 252, "def": 0, "spa": 0, "spd": 0, "spe": 252},
+        "moves": ["earthquake", "stone-edge", "sludge-wave", "ice-beam"]
+      },
+      {
+        "species": "charizard",
+        "level": 45,
+        "nature": "timid",
+        "ability": "solar-power",
+        "item": "choice-specs",
+        "ivs": {"hp": 31, "atk": 0, "def": 31, "spa": 31, "spd": 31, "spe": 31},
+        "evs": {"hp": 0, "atk": 0, "def": 4, "spa": 252, "spd": 0, "spe": 252},
+        "moves": ["fire-blast", "flamethrower", "ice-beam", "hydro-pump"]
+      }
+    ]
+  },
+  "player_demo_team": {
+    "team": [
+      {
+        "species": "garchomp",
+        "level": 47,
+        "nature": "jolly",
+        "ability": "rough-skin",
+        "item": "life-orb",
+        "ivs": {"hp": 31, "atk": 31, "def": 31, "spa": 31, "spd": 31, "spe": 31},
+        "evs": {"hp": 4, "atk": 252, "def": 0, "spa": 0, "spd": 0, "spe": 252},
+        "moves": ["earthquake", "dragon-claw", "stone-edge", "swords-dance"]
+      },
+      {
+        "species": "rotom-wash",
+        "level": 47,
+        "nature": "calm",
+        "ability": "levitate",
+        "item": "leftovers",
+        "ivs": {"hp": 31, "atk": 0, "def": 31, "spa": 31, "spd": 31, "spe": 31},
+        "evs": {"hp": 252, "atk": 0, "def": 0, "spa": 0, "spd": 252, "spe": 4},
+        "moves": ["volt-switch", "hydro-pump", "thunderbolt", "protect"]
+      },
+      {
+        "species": "corviknight",
+        "level": 46,
+        "nature": "impish",
+        "ability": "pressure",
+        "item": "leftovers",
+        "ivs": {"hp": 31, "atk": 31, "def": 31, "spa": 0, "spd": 31, "spe": 31},
+        "evs": {"hp": 252, "atk": 0, "def": 252, "spa": 0, "spd": 4, "spe": 0},
+        "moves": ["u-turn", "iron-head", "protect", "recover"]
+      }
+    ]
+  }
+}

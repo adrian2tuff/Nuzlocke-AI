@@ -1,0 +1,567 @@
+"""
+The core Phase-1 milestone lives here:
+
+    new_state = step(state, player_action, enemy_action, rng)
+
+is exact and reproducible for a given seeded `random.Random` -- run it twice
+with the same seed and you get bit-identical results. That's what makes this
+usable as ground truth for search/training later.
+
+`enumerate_turn_outcomes` is the other half: instead of rolling the dice
+once, it walks every possible combination of (hit/miss, crit/no-crit, damage
+roll) for both Pokemon's moves and returns the full probability distribution
+over resulting states. That's what lets you ask "is this line guaranteed
+safe, or just usually safe?" -- the central ask in the brief.
+"""
+
+from __future__ import annotations
+
+import random
+from dataclasses import dataclass
+from itertools import product
+
+from .damage import damage_rolls, DAMAGE_ROLL_MULTIPLIERS
+from .mechanics import (
+    clamp_stage, STAT_STAGE_MULTIPLIER, STATUS_DAMAGE_FRACTION,
+)
+from .pokemon import Pokemon, Move
+from .state import BattleState
+
+CRIT_CHANCE = 1 / 24        # standard (non-high-crit-ratio) crit chance, Gen 6+
+HIGH_CRIT_CHANCE = 1 / 8
+FULL_PARALYSIS_CHANCE = 0.25   # chance a paralyzed Pokemon fails to act, Gen 3+
+
+
+# ===========================================================================
+# Deterministic single-path resolution (used by step())
+# ===========================================================================
+
+def _crit_chance(move: Move) -> float:
+    return HIGH_CRIT_CHANCE if move.crit_ratio > 0 else CRIT_CHANCE
+
+
+def _accuracy_check(move: Move, attacker: Pokemon, defender: Pokemon, rng: random.Random) -> bool:
+    if move.accuracy is None:
+        return True
+    from .mechanics import ACCURACY_STAGE_MULTIPLIER
+    stage = clamp_stage(attacker.stat_stages.get("accuracy", 0) - defender.stat_stages.get("evasion", 0))
+    chance = move.accuracy * ACCURACY_STAGE_MULTIPLIER[stage] / 100
+    return rng.random() < chance
+
+
+def _apply_stat_change(target: Pokemon, stat: str, stages: int, log: list[str]) -> None:
+    old = target.stat_stages.get(stat, 0)
+    new = clamp_stage(old + stages)
+    target.stat_stages[stat] = new
+    if new != old:
+        direction = "rose" if stages > 0 else "fell"
+        log.append(f"{target.display_name()}'s {stat} {direction} to {new:+d}!")
+    else:
+        log.append(f"{target.display_name()}'s {stat} won't go {'higher' if stages > 0 else 'lower'}!")
+
+
+def _apply_status_damage(mon: Pokemon, log: list[str]) -> None:
+    if mon.is_fainted or mon.status is None:
+        return
+    if mon.status in ("burn", "poison"):
+        dmg = max(1, mon.max_hp // 16 if mon.status == "burn" else mon.max_hp // 8)
+        mon.current_hp = max(0, mon.current_hp - dmg)
+        log.append(f"{mon.display_name()} is hurt by {mon.status}! (-{dmg} HP)")
+    elif mon.status == "toxic":
+        mon.status_turns += 1
+        dmg = max(1, (mon.max_hp * mon.status_turns) // 16)
+        mon.current_hp = max(0, mon.current_hp - dmg)
+        log.append(f"{mon.display_name()} is badly poisoned! (-{dmg} HP)")
+
+
+def resolve_move(
+    attacker: Pokemon,
+    defender: Pokemon,
+    move: Move,
+    field,
+    rng: random.Random,
+    log: list[str],
+    *,
+    force_hit: bool | None = None,
+    force_crit: bool | None = None,
+    force_roll_index: int | None = None,
+    force_effect: bool | None = None,
+    force_full_para: bool | None = None,
+) -> None:
+    """Mutates attacker/defender/field in place. All randomness is drawn from
+    `rng`, OR overridden by the force_* params -- that override is what lets
+    enumerate_turn_outcomes() walk every branch deterministically.
+
+    NOTE: `force_hit` controls ONLY whether the move hits. Whether a
+    secondary effect (e.g. Thunderbolt's 10% paralysis chance) triggers is
+    controlled independently by `force_effect`, and whether paralysis stops
+    the attacker from acting at all is controlled independently by
+    `force_full_para` -- these three used to be conflated (a real bug fixed
+    in Phase 2 testing), and keeping them separate here is what keeps that
+    bug from coming back."""
+
+    move.pp = max(0, move.pp - 1)
+
+    if attacker.is_fainted:
+        return
+
+    if attacker.status == "freeze":
+        log.append(f"{attacker.display_name()} is frozen solid!")
+        return
+    if attacker.status == "sleep":
+        log.append(f"{attacker.display_name()} is fast asleep!")
+        return
+    if attacker.status == "paralysis":
+        full_para = force_full_para if force_full_para is not None else (rng.random() < FULL_PARALYSIS_CHANCE)
+        if full_para:
+            log.append(f"{attacker.display_name()} is paralyzed and can't move!")
+            return
+
+    hit = force_hit if force_hit is not None else _accuracy_check(move, attacker, defender, rng)
+    if not hit:
+        log.append(f"{attacker.display_name()}'s {move.name} missed!")
+        return
+
+    if move.category == "status":
+        log.append(f"{attacker.display_name()} used {move.name}!")
+        _apply_move_effect(move, attacker, defender, log)
+        return
+
+    is_crit = force_crit if force_crit is not None else (rng.random() < _crit_chance(move))
+    rolls = damage_rolls(attacker, defender, move, field, is_crit=is_crit)
+    roll_idx = force_roll_index if force_roll_index is not None else rng.randrange(len(rolls))
+    dmg = rolls[roll_idx]
+
+    defender.current_hp = max(0, defender.current_hp - dmg)
+    log.append(
+        f"{attacker.display_name()} used {move.name}! "
+        f"{'A critical hit! ' if is_crit else ''}"
+        f"{defender.display_name()} took {dmg} damage "
+        f"({defender.current_hp}/{defender.max_hp} HP left)."
+    )
+
+    if defender.is_fainted:
+        log.append(f"{defender.display_name()} fainted!")
+        return
+
+    if move.effect and (force_effect if force_effect is not None else rng.random() * 100 < move.effect_chance):
+        _apply_move_effect(move, attacker, defender, log)
+
+
+def _apply_move_effect(move: Move, attacker: Pokemon, defender: Pokemon, log: list[str]) -> None:
+    eff = move.effect
+    data = move.effect_data
+    if eff is None:
+        return
+    target = attacker if data.get("target") == "self" else defender
+    if eff == "stat_change":
+        _apply_stat_change(target, data["stat"], data["stages"], log)
+    elif eff in ("burn", "paralysis", "poison", "toxic"):
+        if target.status is None:
+            target.status = eff
+            log.append(f"{target.display_name()} was afflicted with {eff}!")
+    elif eff == "heal":
+        amount = int(attacker.max_hp * data.get("fraction", 0.5))
+        attacker.current_hp = min(attacker.max_hp, attacker.current_hp + amount)
+        log.append(f"{attacker.display_name()} restored HP!")
+
+
+def _order_or_tie(state: BattleState, player_action: dict, enemy_action: dict) -> tuple[list[str] | None, bool]:
+    """Returns (order, False) if resolution order is determined, or
+    (None, True) if it comes down to a genuine speed tie that needs to be
+    decided randomly (by step()) or branched over (by enumerate_turn_outcomes)."""
+    p_switch = player_action["type"] == "switch"
+    e_switch = enemy_action["type"] == "switch"
+    if p_switch and not e_switch:
+        return ["player", "enemy"], False
+    if e_switch and not p_switch:
+        return ["enemy", "player"], False
+    if p_switch and e_switch:
+        return ["player", "enemy"], False  # arbitrary; both are switches, order doesn't affect outcome
+
+    p_move = state.player_mon.moves[player_action["move_index"]]
+    e_move = state.enemy_mon.moves[enemy_action["move_index"]]
+
+    if p_move.priority != e_move.priority:
+        return (["player", "enemy"] if p_move.priority > e_move.priority else ["enemy", "player"]), False
+
+    p_spe = state.player_mon.effective_stat("spe")
+    e_spe = state.enemy_mon.effective_stat("spe")
+    if p_spe != e_spe:
+        return (["player", "enemy"] if p_spe > e_spe else ["enemy", "player"]), False
+
+    return None, True  # genuine speed tie
+
+
+def turn_order(
+    state: BattleState, player_action: dict, enemy_action: dict, rng: random.Random | None = None,
+) -> list[str]:
+    """Return ['player','enemy'] or ['enemy','player'] for resolution order.
+    On a genuine speed tie, resolves it as a real 50/50 using `rng` if given
+    (this is what step() passes, so tie-breaks are part of the seeded,
+    reproducible randomness) -- falls back to player-first only when no rng
+    is available (e.g. quick heuristics that don't care about exactness)."""
+    order, tied = _order_or_tie(state, player_action, enemy_action)
+    if not tied:
+        return order
+    if rng is not None:
+        return ["player", "enemy"] if rng.random() < 0.5 else ["enemy", "player"]
+    return ["player", "enemy"]
+
+
+def order_branches(state: BattleState, player_action: dict, enemy_action: dict) -> list[tuple[float, list[str]]]:
+    """Like turn_order, but for enumeration: returns [(1.0, order)] when
+    order is determined, or [(0.5, [player,enemy]), (0.5, [enemy,player])]
+    on a genuine speed tie -- so enumerate_turn_outcomes can branch over it
+    instead of silently picking one side."""
+    order, tied = _order_or_tie(state, player_action, enemy_action)
+    if not tied:
+        return [(1.0, order)]
+    return [(0.5, ["player", "enemy"]), (0.5, ["enemy", "player"])]
+
+
+def _apply_switch(state: BattleState, side: str, target_index: int, log: list[str]) -> None:
+    outgoing = state.active_mon(side)
+    incoming = state.side_team(side)[target_index]
+
+    # It's the Pokemon LEAVING the field whose stat stages/volatile status
+    # clear -- not the one coming in. (Getting this backwards means a boost
+    # like Swords Dance incorrectly "sticks" on a benched Pokemon and
+    # reappears next time it's sent out, instead of resetting like it should
+    # the moment it leaves the field.)
+    outgoing.stat_stages = {k: 0 for k in outgoing.stat_stages}
+    outgoing.volatile = set()
+
+    state.set_active_index(side, target_index)
+    log.append(f"{'You' if side == 'player' else 'Opponent'} sent out {incoming.display_name()}!")
+
+
+def step(
+    state: BattleState,
+    player_action: dict,
+    enemy_action: dict,
+    rng: random.Random,
+) -> BattleState:
+    """
+    Exact, reproducible turn resolution: state + actions + seeded rng ->
+    a brand-new resulting BattleState. Does not mutate the input state.
+    """
+    new_state = state.clone()
+    log = new_state.log
+
+    order = turn_order(new_state, player_action, enemy_action, rng=rng)
+    actions = {"player": player_action, "enemy": enemy_action}
+
+    for side in order:
+        action = actions[side]
+        other = new_state.other_side(side)
+
+        if new_state.active_mon(side).is_fainted:
+            continue  # already fainted earlier this turn, can't act
+
+        if action["type"] == "switch":
+            _apply_switch(new_state, side, action["target_index"], log)
+            continue
+
+        attacker = new_state.active_mon(side)
+        defender = new_state.active_mon(other)
+        move = attacker.moves[action["move_index"]]
+        resolve_move(attacker, defender, move, new_state.field, rng, log)
+
+        if new_state.team_wiped(other):
+            break  # battle over, no point resolving further
+
+    # End-of-turn status damage (only if battle isn't already decided)
+    if not new_state.is_terminal():
+        _apply_status_damage(new_state.player_mon, log)
+        _apply_status_damage(new_state.enemy_mon, log)
+
+    new_state.turn += 1
+    return new_state
+
+
+# ===========================================================================
+# Exact outcome enumeration (the "near-riskless line" tool)
+# ===========================================================================
+
+@dataclass
+class Outcome:
+    probability: float
+    state: BattleState
+    description: str
+
+
+def _bucket_roll_indices(n_rolls: int, n_buckets: int | None) -> list[tuple[float, int]]:
+    """
+    Reduce the 16 exact damage-roll indices down to `n_buckets` representative
+    ones for tractable multi-turn lookahead. Pass n_buckets=None to keep all
+    16 exact rolls (used for single-turn certification).
+
+    HONEST LABELING: this is a representative-roll APPROXIMATION, not an
+    exact aggregate probability preserved from the real 16-roll distribution.
+    It splits the 16 rolls into `n_buckets` contiguous groups and assigns
+    each representative roll the probability mass of its whole group (so
+    group sizes, not a flat 1/n_buckets, determine the weight) -- that's
+    closer to correct than a flat split, but it still collapses each group
+    to a single representative value rather than modeling the group's
+    internal spread. Good enough for "does this line risk going badly a
+    few turns out", not a substitute for the exact n_buckets=None case.
+    """
+    if n_buckets is None or n_buckets >= n_rolls:
+        return [(1 / n_rolls, i) for i in range(n_rolls)]
+    if n_buckets == 1:
+        return [(1.0, n_rolls // 2)]
+
+    # Split indices 0..n_rolls-1 into n_buckets contiguous groups, as close
+    # to equal size as possible; representative = the group's middle index.
+    base, remainder = divmod(n_rolls, n_buckets)
+    groups: list[list[int]] = []
+    start = 0
+    for b in range(n_buckets):
+        size = base + (1 if b < remainder else 0)
+        groups.append(list(range(start, start + size)))
+        start += size
+
+    return [(len(g) / n_rolls, g[len(g) // 2]) for g in groups]
+
+
+def _single_move_branches(
+    attacker: Pokemon, defender: Pokemon, move: Move, field,
+    damage_buckets: int | None = None,
+) -> list[tuple[float, bool, bool, int | None]]:
+    """
+    Enumerate (probability, hit, crit, roll_index) branches for one move use,
+    ignoring status-prevents-action for simplicity in Phase 1 (add later).
+    Status/switch moves collapse roll_index to None.
+
+    `damage_buckets`: None = exact (all 16 damage rolls). An int = reduce to
+    that many representative rolls, for tractable multi-turn search -- see
+    `_bucket_roll_indices`.
+    """
+    if move.accuracy is None:
+        hit_branches = [(1.0, True)]
+    else:
+        from .mechanics import ACCURACY_STAGE_MULTIPLIER
+        stage = clamp_stage(attacker.stat_stages.get("accuracy", 0) - defender.stat_stages.get("evasion", 0))
+        p_hit = min(1.0, move.accuracy * ACCURACY_STAGE_MULTIPLIER[stage] / 100)
+        hit_branches = [(p_hit, True), (1 - p_hit, False)]
+
+    branches = []
+    for p_hit, hit in hit_branches:
+        if p_hit == 0:
+            continue
+        if not hit or move.category == "status" or move.power == 0:
+            branches.append((p_hit, hit, False, None))
+            continue
+        crit_p = _crit_chance(move)
+        for p_crit, crit in ((crit_p, True), (1 - crit_p, False)):
+            if p_crit == 0:
+                continue
+            n_rolls = len(DAMAGE_ROLL_MULTIPLIERS)
+            for p_roll, roll_idx in _bucket_roll_indices(n_rolls, damage_buckets):
+                branches.append((p_hit * p_crit * p_roll, hit, crit, roll_idx))
+    return branches
+
+
+def enumerate_turn_outcomes(
+    state: BattleState,
+    player_action: dict,
+    enemy_action: dict,
+    *,
+    max_branches: int = 5000,
+    damage_buckets: int | None = None,
+) -> list[Outcome]:
+    """
+    Full exact-under-the-modeled-randomness probability distribution over
+    resulting states for this turn. Use this to answer "does ANY branch
+    result in my Pokemon fainting?" -- i.e. to certify a line as
+    guaranteed-safe rather than just usually-safe.
+
+    IMPORTANT SCOPE NOTE (read this before trusting "guaranteed" anywhere
+    downstream): this enumerates accuracy/crit/damage-roll/secondary-effect/
+    full-paralysis randomness for both moves, AND branches over genuine
+    speed ties as a real 50/50 (see `order_branches`). It does NOT yet
+    enumerate sleep/freeze thaw -- there's no move in the current data that
+    inflicts either, so that's a documented gap rather than guessed-at code
+    (see README). `summarize_risk()`'s `exact` flag and
+    `unmodeled_randomness` list reflect this scope.
+
+    The second mover's move is evaluated against the state AFTER the first
+    mover's action resolves (s1), not the original state -- this matters
+    whenever the first action changes what the second move is checking
+    against: a switch changes the defender's typing/stats entirely (e.g. a
+    Ground move that would hit the old defender but is now facing a
+    Flying-type immune to it), and stat-changing or status-inflicting first
+    moves change the second move's accuracy/crit/damage math too.
+
+    Secondary effects (e.g. Thunderbolt's 10% paralysis chance) and full
+    paralysis (25% chance a paralyzed Pokemon can't act) are each their own
+    branch, independent of the hit/miss branch.
+    """
+    actions = {"player": player_action, "enemy": enemy_action}
+
+    def branches_for(acting_state: BattleState, side: str) -> list[tuple[float, bool, bool, int | None, bool, bool]]:
+        """(probability, hit, crit, roll_index, effect_triggers, full_para)
+        branches, computed against `acting_state` -- i.e. always call this
+        AFTER any earlier action this turn has already been applied."""
+        action = actions[side]
+        if action["type"] == "switch" or acting_state.active_mon(side).is_fainted:
+            return [(1.0, True, False, None, False, False)]
+
+        attacker = acting_state.active_mon(side)
+        other = acting_state.other_side(side)
+        defender = acting_state.active_mon(other)
+        move = attacker.moves[action["move_index"]]
+        move_branches = _single_move_branches(attacker, defender, move, acting_state.field, damage_buckets=damage_buckets)
+
+        # Fan each (hit/crit/roll) branch out over the secondary-effect chance.
+        fanned: list[tuple[float, bool, bool, int | None, bool]] = []
+        for p, hit, crit, roll_idx in move_branches:
+            if not hit or move.effect is None:
+                fanned.append((p, hit, crit, roll_idx, False))
+                continue
+            chance = move.effect_chance / 100
+            if chance >= 1.0:
+                fanned.append((p, hit, crit, roll_idx, True))
+            elif chance <= 0.0:
+                fanned.append((p, hit, crit, roll_idx, False))
+            else:
+                fanned.append((p * chance, hit, crit, roll_idx, True))
+                fanned.append((p * (1 - chance), hit, crit, roll_idx, False))
+
+        # Fan out again over full-paralysis, if applicable: a paralyzed
+        # attacker either fails to act entirely (its own branch, whatever
+        # it would have done is irrelevant) or acts normally with the
+        # remaining probability mass.
+        if attacker.status == "paralysis":
+            out = [(p * (1 - FULL_PARALYSIS_CHANCE), hit, crit, roll_idx, effect, False)
+                   for (p, hit, crit, roll_idx, effect) in fanned]
+            out.append((FULL_PARALYSIS_CHANCE, True, False, None, False, True))
+            return out
+
+        return [(p, hit, crit, roll_idx, effect, False) for (p, hit, crit, roll_idx, effect) in fanned]
+
+    def enumerate_for_order(order: list[str], order_weight: float) -> list[Outcome]:
+        first, second = order[0], order[1]
+        outs: list[Outcome] = []
+
+        for p1, hit1, crit1, roll1, effect1, para1 in branches_for(state, first):
+            s1 = state.clone()
+            log1: list[str] = []
+            a1 = actions[first]
+            if a1["type"] == "switch":
+                _apply_switch(s1, first, a1["target_index"], log1)
+            elif not s1.active_mon(first).is_fainted:
+                attacker = s1.active_mon(first)
+                defender = s1.active_mon(s1.other_side(first))
+                move = attacker.moves[a1["move_index"]]
+                resolve_move(
+                    attacker, defender, move, s1.field,
+                    rng=random.Random(0), log=log1,
+                    force_hit=hit1, force_crit=crit1, force_roll_index=roll1,
+                    force_effect=effect1, force_full_para=para1,
+                )
+
+            first_wiped = s1.team_wiped(s1.other_side(first))
+
+            if first_wiped:
+                _apply_status_damage(s1.player_mon, log1)
+                _apply_status_damage(s1.enemy_mon, log1)
+                s1.turn += 1
+                outs.append(Outcome(order_weight * p1, s1, "; ".join(log1)))
+                continue
+
+            # Second mover's branches are computed from s1 -- the state
+            # AFTER the first move resolved -- not from the original
+            # `state`. This is what makes switches-into-immunity and
+            # stat/status-changing first moves evaluate correctly.
+            for p2, hit2, crit2, roll2, effect2, para2 in branches_for(s1, second):
+                s2 = s1.clone()
+                log2: list[str] = list(log1)
+                a2 = actions[second]
+                if s2.active_mon(second).is_fainted:
+                    pass
+                elif a2["type"] == "switch":
+                    _apply_switch(s2, second, a2["target_index"], log2)
+                else:
+                    attacker = s2.active_mon(second)
+                    defender = s2.active_mon(s2.other_side(second))
+                    move = attacker.moves[a2["move_index"]]
+                    resolve_move(
+                        attacker, defender, move, s2.field,
+                        rng=random.Random(0), log=log2,
+                        force_hit=hit2, force_crit=crit2, force_roll_index=roll2,
+                        force_effect=effect2, force_full_para=para2,
+                    )
+
+                if not s2.is_terminal():
+                    _apply_status_damage(s2.player_mon, log2)
+                    _apply_status_damage(s2.enemy_mon, log2)
+                s2.turn += 1
+
+                outs.append(Outcome(order_weight * p1 * p2, s2, "; ".join(log2)))
+
+                if len(outs) > max_branches:
+                    raise RuntimeError(
+                        f"enumerate_turn_outcomes exceeded {max_branches} branches -- "
+                        "reduce roll granularity or bucket damage rolls for this use case."
+                    )
+        return outs
+
+    outcomes: list[Outcome] = []
+    for weight, order in order_branches(state, player_action, enemy_action):
+        outcomes.extend(enumerate_for_order(order, weight))
+    return outcomes
+
+
+# ===========================================================================
+# Risk summary helpers -- these turn a raw Outcome list into the
+# guaranteed / robust / risky / catastrophic language from the plan.
+# ===========================================================================
+
+def summarize_risk(outcomes: list[Outcome], watch: str = "player", *, exact: bool = True) -> dict:
+    """
+    Given enumerate_turn_outcomes() output, compute the probability that the
+    watched side's active Pokemon faints, and the team-wipe probability.
+
+    `exact`: pass True only when this was called with damage_buckets=None.
+    Even then, "exact" means exact with respect to the randomness this
+    engine currently models -- accuracy, crit, damage-roll, secondary-effect,
+    full-paralysis, and speed ties are all branched now. Sleep/freeze thaw
+    are the one remaining gap (no move in the current data inflicts either,
+    so there's nothing yet to test that logic against -- see README).
+    """
+    p_active_faints = 0.0
+    p_team_wiped = 0.0
+    p_win = 0.0  # watched side wins the whole battle this turn
+    other = "enemy" if watch == "player" else "player"
+
+    for o in outcomes:
+        mon = o.state.active_mon(watch)
+        if mon.is_fainted:
+            p_active_faints += o.probability
+        if o.state.team_wiped(watch):
+            p_team_wiped += o.probability
+        if o.state.team_wiped(other) and not o.state.team_wiped(watch):
+            p_win += o.probability
+
+    if p_team_wiped == 0:
+        tier = "guaranteed"
+    elif p_team_wiped < 0.02:
+        tier = "robust"
+    elif p_team_wiped < 0.15:
+        tier = "risky"
+    else:
+        tier = "catastrophic"
+
+    return {
+        "active_faint_probability": round(p_active_faints, 4),
+        "team_wipe_probability": round(p_team_wiped, 4),
+        "win_probability_this_turn": round(p_win, 4),
+        "risk_tier": tier,
+        "branch_count": len(outcomes),
+        "exact": exact,
+        "unmodeled_randomness": [
+            "sleep_freeze_thaw",  # no move in current data inflicts either -- nothing to test against yet
+        ],
+    }

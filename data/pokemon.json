@@ -1,0 +1,12 @@
+{
+  "garchomp": {"types": ["dragon", "ground"], "base_stats": {"hp": 108, "atk": 130, "def": 95, "spa": 80, "spd": 85, "spe": 102}},
+  "rotom-wash": {"types": ["electric", "water"], "base_stats": {"hp": 50, "atk": 65, "def": 107, "spa": 105, "spd": 107, "spe": 86}},
+  "corviknight": {"types": ["flying", "steel"], "base_stats": {"hp": 98, "atk": 87, "def": 105, "spa": 53, "spd": 85, "spe": 67}},
+  "excadrill": {"types": ["ground", "steel"], "base_stats": {"hp": 110, "atk": 135, "def": 60, "spa": 50, "spd": 65, "spe": 88}},
+  "bibarel": {"types": ["normal", "water"], "base_stats": {"hp": 79, "atk": 85, "def": 60, "spa": 55, "spd": 60, "spe": 71}},
+  "geodude": {"types": ["rock", "ground"], "base_stats": {"hp": 40, "atk": 80, "def": 100, "spa": 30, "spd": 30, "spe": 20}},
+  "onix": {"types": ["rock", "ground"], "base_stats": {"hp": 35, "atk": 45, "def": 160, "spa": 30, "spd": 45, "spe": 70}},
+  "nidoking": {"types": ["poison", "ground"], "base_stats": {"hp": 81, "atk": 92, "def": 77, "spa": 85, "spd": 75, "spe": 85}},
+  "volcarona": {"types": ["bug", "fire"], "base_stats": {"hp": 85, "atk": 60, "def": 65, "spa": 135, "spd": 105, "spe": 100}},
+  "charizard": {"types": ["fire", "flying"], "base_stats": {"hp": 78, "atk": 84, "def": 78, "spa": 109, "spd": 85, "spe": 100}}
+}
