@@ -6,7 +6,6 @@ the simulator can freely branch into hypothetical futures via `.clone()`.
 
 from __future__ import annotations
 
-import copy
 # NOTE: aliased to avoid a name collision -- BattleState has an attribute
 # literally called `field` (the battlefield conditions), which would shadow
 # dataclasses.field() if imported under its normal name.
@@ -112,13 +111,15 @@ class BattleState:
         return actions
 
     def clone(self) -> "BattleState":
-        # Battle states are branched constantly by the search. Avoid a full
-        # deepcopy: species/stat templates are immutable, while Pokemon
-        # clones already copy only battle-mutable fields.
-        clone = copy.copy(self)
+        # Avoid generic copy machinery: this method is on the hottest path
+        # in search and every nested object is copied only as deeply as needed.
+        clone = object.__new__(BattleState)
+        clone.__dict__ = self.__dict__.copy()
         clone.player_team = [p.clone() for p in self.player_team]
         clone.enemy_team = [p.clone() for p in self.enemy_team]
-        clone.field = copy.copy(self.field)
+
+        clone.field = object.__new__(Field)
+        clone.field.__dict__ = self.field.__dict__.copy()
         clone.field.hazards = {
             side: values.copy() for side, values in self.field.hazards.items()
         }
