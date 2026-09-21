@@ -574,6 +574,58 @@ class TestBattleMechanics(unittest.TestCase):
         self.assertTrue(any("Hit 2/" in d for d in descriptions))
         self.assertTrue(any("Hit 5/" in d for d in descriptions))
 
+    def test_sleep_blocks_action_and_then_wakes(self):
+        state = fresh_state()
+        state.player_mon.moves.append(DataStore().build_move("sleep-powder"))
+        sleep_idx = len(state.player_mon.moves) - 1
+
+        inflicted = step(
+            state,
+            {"type": "move", "move_index": sleep_idx},
+            {"type": "switch", "target_index": 1},
+            random.Random(1),
+        )
+        self.assertEqual(inflicted.enemy_mon.status, "sleep")
+        self.assertIn(inflicted.enemy_mon.status_turns, (1, 2, 3))
+
+        sleeping = inflicted.clone()
+        sleeping.enemy_mon.status = "sleep"
+        sleeping.enemy_mon.status_turns = 1
+        result = step(
+            sleeping,
+            {"type": "switch", "target_index": 1},
+            {"type": "move", "move_index": 0},
+            random.Random(1),
+        )
+        self.assertIsNone(result.enemy_mon.status)
+        self.assertTrue(any("woke up" in entry for entry in result.log))
+
+    def test_sleep_enumeration_branches_wake_timing(self):
+        state = fresh_state()
+        state.enemy_mon.status = "sleep"
+        state.enemy_mon.status_turns = 1
+        outcomes = enumerate_turn_outcomes(
+            state,
+            {"type": "switch", "target_index": 1},
+            {"type": "move", "move_index": 0},
+        )
+        self.assertAlmostEqual(sum(o.probability for o in outcomes), 1.0)
+        self.assertTrue(any("woke up" in o.description for o in outcomes))
+
+    def test_freeze_enumeration_branches_thaw(self):
+        state = fresh_state()
+        state.enemy_mon.status = "freeze"
+        outcomes = enumerate_turn_outcomes(
+            state,
+            {"type": "switch", "target_index": 1},
+            {"type": "move", "move_index": 0},
+        )
+        self.assertAlmostEqual(sum(o.probability for o in outcomes), 1.0)
+        thawed = sum(o.probability for o in outcomes if "thawed out" in o.description)
+        frozen = sum(o.probability for o in outcomes if "frozen solid" in o.description)
+        self.assertAlmostEqual(thawed, 0.20)
+        self.assertAlmostEqual(frozen, 0.80)
+
     def test_explosion_faints_user(self):
         state = fresh_state()
         state.player_active = 1
