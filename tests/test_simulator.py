@@ -353,9 +353,12 @@ class TestBattleMechanics(unittest.TestCase):
             {"type": "move", "move_index": idx},
             {"type": "move", "move_index": 0},
         )
+        # Flinch is a volatile condition that is consumed when it prevents
+        # the target's turn, so it should not remain on the final state.
         p_flinch = sum(
-            o.probability for o in outcomes
-            if "flinch" in o.state.enemy_mon.volatile
+            o.probability
+            for o in outcomes
+            if "flinched and couldn't move" in o.description
         )
         self.assertGreater(p_flinch, 0.0)
         self.assertLess(p_flinch, 0.5)
