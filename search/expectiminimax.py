@@ -166,7 +166,7 @@ def _value(
         local_beta = beta
         for ea in enemy_actions:
             outcomes = enumerate_turn_outcomes(
-                state, pa, ea, damage_buckets=damage_buckets,
+                state, pa, ea, damage_buckets=damage_buckets, include_descriptions=False,
             )
             # NOTE: each recursive _value() call below starts with fresh
             # (-inf, +inf) bounds -- see module docstring on why bounds
@@ -220,7 +220,7 @@ def search_best_action(
         worst_value = float("inf")
         worst_enemy_action = None
         for ea in enemy_actions:
-            outcomes = enumerate_turn_outcomes(state, pa, ea, damage_buckets=damage_buckets)
+            outcomes = enumerate_turn_outcomes(state, pa, ea, damage_buckets=damage_buckets, include_descriptions=False)
             expected = sum(
                 o.probability * _value(
                     o.state,
