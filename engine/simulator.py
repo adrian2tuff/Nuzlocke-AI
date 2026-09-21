@@ -117,6 +117,11 @@ def resolve_move(
     if attacker.status == "sleep":
         log.append(f"{attacker.display_name()} is fast asleep!")
         return
+    if "flinch" in attacker.volatile:
+        attacker.volatile.discard("flinch")
+        log.append(f"{attacker.display_name()} flinched and couldn't move!")
+        return
+
     if attacker.status == "paralysis":
         full_para = force_full_para if force_full_para is not None else (rng.random() < FULL_PARALYSIS_CHANCE)
         if full_para:
@@ -150,16 +155,37 @@ def resolve_move(
         log.append(f"{defender.display_name()} fainted!")
 
     if move.effect and (force_effect if force_effect is not None else rng.random() * 100 < move.effect_chance):
-        _apply_move_effect(move, attacker, defender, log)
+        _apply_move_effect(move, attacker, defender, log, damage_dealt=dmg)
 
 
 def _apply_move_effect(
     move: Move, attacker: Pokemon, defender: Pokemon, log: list[str],
-    *, field=None, attacker_side: str | None = None,
+    *, field=None, attacker_side: str | None = None, damage_dealt: int = 0,
 ) -> None:
     eff = move.effect
     data = move.effect_data
     if eff is None:
+        return
+    if eff == "recoil":
+        fraction = data.get("fraction", 0)
+        recoil = max(1, int(damage_dealt * fraction)) if damage_dealt > 0 else 0
+        attacker.current_hp = max(0, attacker.current_hp - recoil)
+        if recoil:
+            log.append(f"{attacker.display_name()} took {recoil} recoil damage!")
+            if attacker.is_fainted:
+                log.append(f"{attacker.display_name()} fainted!")
+        return
+    if eff == "drain":
+        fraction = data.get("fraction", 0)
+        healing = max(1, int(damage_dealt * fraction)) if damage_dealt > 0 else 0
+        attacker.current_hp = min(attacker.max_hp, attacker.current_hp + healing)
+        if healing:
+            log.append(f"{attacker.display_name()} restored {healing} HP!")
+        return
+    if eff == "flinch":
+        if not defender.is_fainted:
+            defender.volatile.add("flinch")
+            log.append(f"{defender.display_name()} flinched!")
         return
     if eff == "stealth_rock":
         if field is not None and attacker_side is not None:
