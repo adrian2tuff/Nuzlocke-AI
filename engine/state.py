@@ -112,7 +112,21 @@ class BattleState:
         return actions
 
     def clone(self) -> "BattleState":
-        return copy.deepcopy(self)
+        # Battle states are branched constantly by the search. Avoid a full
+        # deepcopy: species/stat templates are immutable, while Pokemon
+        # clones already copy only battle-mutable fields.
+        clone = copy.copy(self)
+        clone.player_team = [p.clone() for p in self.player_team]
+        clone.enemy_team = [p.clone() for p in self.enemy_team]
+        clone.field = copy.copy(self.field)
+        clone.field.hazards = {
+            side: values.copy() for side, values in self.field.hazards.items()
+        }
+        clone.field.screens = {
+            side: values.copy() for side, values in self.field.screens.items()
+        }
+        clone.log = self.log.copy()
+        return clone
 
     def describe_active(self) -> str:
         p = self.player_mon
