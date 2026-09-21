@@ -188,7 +188,24 @@
     "category": "special",
     "power": 90,
     "accuracy": 100,
-    "pp": 10
+    "pp": 10,
+    "effect": "freeze",
+    "effect_chance": 10,
+    "effect_data": {
+      "target": "other"
+    }
+  },
+  "sleep-powder": {
+    "type": "grass",
+    "category": "status",
+    "power": 0,
+    "accuracy": 75,
+    "pp": 15,
+    "effect": "sleep",
+    "effect_chance": 100,
+    "effect_data": {
+      "target": "other"
+    }
   },
   "protect": {
     "type": "normal",
