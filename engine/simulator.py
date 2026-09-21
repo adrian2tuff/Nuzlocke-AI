@@ -22,7 +22,7 @@ from itertools import product
 
 from .damage import damage_rolls, DAMAGE_ROLL_MULTIPLIERS
 from .mechanics import (
-    clamp_stage, STAT_STAGE_MULTIPLIER, STATUS_DAMAGE_FRACTION,
+    clamp_stage, STAT_STAGE_MULTIPLIER, STATUS_DAMAGE_FRACTION, type_effectiveness,
 )
 from .pokemon import Pokemon, Move
 from .state import BattleState
@@ -92,6 +92,7 @@ def resolve_move(
     force_roll_index: int | None = None,
     force_effect: bool | None = None,
     force_full_para: bool | None = None,
+    attacker_side: str | None = None,
 ) -> None:
     """Mutates attacker/defender/field in place. All randomness is drawn from
     `rng`, OR overridden by the force_* params -- that override is what lets
@@ -129,7 +130,7 @@ def resolve_move(
 
     if move.category == "status":
         log.append(f"{attacker.display_name()} used {move.name}!")
-        _apply_move_effect(move, attacker, defender, log)
+        _apply_move_effect(move, attacker, defender, log, field=field, attacker_side=attacker_side)
         return
 
     is_crit = force_crit if force_crit is not None else (rng.random() < _crit_chance(move))
@@ -147,16 +148,23 @@ def resolve_move(
 
     if defender.is_fainted:
         log.append(f"{defender.display_name()} fainted!")
-        return
 
     if move.effect and (force_effect if force_effect is not None else rng.random() * 100 < move.effect_chance):
         _apply_move_effect(move, attacker, defender, log)
 
 
-def _apply_move_effect(move: Move, attacker: Pokemon, defender: Pokemon, log: list[str]) -> None:
+def _apply_move_effect(
+    move: Move, attacker: Pokemon, defender: Pokemon, log: list[str],
+    *, field=None, attacker_side: str | None = None,
+) -> None:
     eff = move.effect
     data = move.effect_data
     if eff is None:
+        return
+    if eff == "stealth_rock":
+        if field is not None and attacker_side is not None:
+            field.hazards[attacker_side]["stealth_rock"] = True
+            log.append("Pointed stones float in the air around the opposing team!")
         return
     target = attacker if data.get("target") == "self" else defender
     if eff == "stat_change":
@@ -169,6 +177,9 @@ def _apply_move_effect(move: Move, attacker: Pokemon, defender: Pokemon, log: li
         amount = int(attacker.max_hp * data.get("fraction", 0.5))
         attacker.current_hp = min(attacker.max_hp, attacker.current_hp + amount)
         log.append(f"{attacker.display_name()} restored HP!")
+    elif eff == "self_faint":
+        attacker.current_hp = 0
+        log.append(f"{attacker.display_name()} fainted from using {move.name}!")
 
 
 def _order_or_tie(state: BattleState, player_action: dict, enemy_action: dict) -> tuple[list[str] | None, bool]:
@@ -240,6 +251,15 @@ def _apply_switch(state: BattleState, side: str, target_index: int, log: list[st
     state.set_active_index(side, target_index)
     log.append(f"{'You' if side == 'player' else 'Opponent'} sent out {incoming.display_name()}!")
 
+    if state.field.hazards[side]["stealth_rock"] and not incoming.is_fainted:
+        multiplier = type_effectiveness("rock", incoming.species.types)
+        if multiplier > 0:
+            damage = max(1, int(incoming.max_hp * multiplier / 8))
+            incoming.current_hp = max(0, incoming.current_hp - damage)
+            log.append(f"{incoming.display_name()} was hurt by Stealth Rock! (-{damage} HP)")
+            if incoming.is_fainted:
+                log.append(f"{incoming.display_name()} fainted!")
+
 
 def step(
     state: BattleState,
@@ -271,7 +291,7 @@ def step(
         attacker = new_state.active_mon(side)
         defender = new_state.active_mon(other)
         move = attacker.moves[action["move_index"]]
-        resolve_move(attacker, defender, move, new_state.field, rng, log)
+        resolve_move(attacker, defender, move, new_state.field, rng, log, attacker_side=side)
 
         if new_state.team_wiped(other):
             break  # battle over, no point resolving further
@@ -473,7 +493,7 @@ def enumerate_turn_outcomes(
                     attacker, defender, move, s1.field,
                     rng=_ENUM_RNG, log=log1,
                     force_hit=hit1, force_crit=crit1, force_roll_index=roll1,
-                    force_effect=effect1, force_full_para=para1,
+                    force_effect=effect1, force_full_para=para1, attacker_side=first,
                 )
 
             first_wiped = s1.team_wiped(s1.other_side(first))
@@ -508,7 +528,7 @@ def enumerate_turn_outcomes(
                         attacker, defender, move, s2.field,
                         rng=_ENUM_RNG, log=log2,
                         force_hit=hit2, force_crit=crit2, force_roll_index=roll2,
-                        force_effect=effect2, force_full_para=para2,
+                        force_effect=effect2, force_full_para=para2, attacker_side=second,
                     )
 
                 if not s2.is_terminal():
