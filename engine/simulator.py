@@ -92,6 +92,7 @@ def resolve_move(
     force_roll_index: int | None = None,
     force_effect: bool | None = None,
     force_full_para: bool | None = None,
+    force_protect_success: bool | None = None,
     attacker_side: str | None = None,
 ) -> None:
     """Mutates attacker/defender/field in place. All randomness is drawn from
@@ -110,6 +111,17 @@ def resolve_move(
 
     if attacker.is_fainted:
         return
+
+    if move.effect == "protect":
+        chance = 1.0 / (2 ** attacker.protect_streak)
+        success = force_protect_success if force_protect_success is not None else (rng.random() < chance)
+        if not success:
+            attacker.protect_streak = 0
+            log.append(f"{attacker.display_name()} failed to protect itself!")
+            return
+        attacker.protect_streak += 1
+    else:
+        attacker.protect_streak = 0
 
     # Protect blocks targeted moves after the protected Pokemon has acted.
     # It is a one-turn volatile condition, cleared at end of turn or switch.
@@ -333,6 +345,7 @@ def _apply_switch(state: BattleState, side: str, target_index: int, log: list[st
     # the moment it leaves the field.)
     outgoing.stat_stages = {k: 0 for k in outgoing.stat_stages}
     outgoing.volatile = set()
+    outgoing.protect_streak = 0
 
     state.set_active_index(side, target_index)
     log.append(f"{'You' if side == 'player' else 'Opponent'} sent out {incoming.display_name()}!")
@@ -601,18 +614,26 @@ def enumerate_turn_outcomes(
     """
     actions = {"player": player_action, "enemy": enemy_action}
 
-    def branches_for(acting_state: BattleState, side: str) -> list[tuple[float, bool, bool, int | None, bool, bool]]:
+    def branches_for(acting_state: BattleState, side: str) -> list[tuple[float, bool, bool, int | None, bool, bool, bool | None]]:
         """(probability, hit, crit, roll_index, effect_triggers, full_para)
         branches, computed against `acting_state` -- i.e. always call this
         AFTER any earlier action this turn has already been applied."""
         action = actions[side]
         if action["type"] == "switch" or acting_state.active_mon(side).is_fainted:
-            return [(1.0, True, False, None, False, False)]
+            return [(1.0, True, False, None, False, False, None)]
 
         attacker = acting_state.active_mon(side)
         other = acting_state.other_side(side)
         defender = acting_state.active_mon(other)
         move = attacker.moves[action["move_index"]]
+        if move.effect == "protect":
+            chance = 1.0 / (2 ** attacker.protect_streak)
+            if chance >= 1.0:
+                return [(1.0, True, False, None, True, False, True)]
+            return [
+                (chance, True, False, None, True, False, True),
+                (1.0 - chance, True, False, None, False, False, False),
+            ]
         move_branches = _single_move_branches(attacker, defender, move, acting_state.field, damage_buckets=damage_buckets)
 
         # Fan each (hit/crit/roll) branch out over the secondary-effect chance.
@@ -635,18 +656,18 @@ def enumerate_turn_outcomes(
         # it would have done is irrelevant) or acts normally with the
         # remaining probability mass.
         if attacker.status == "paralysis":
-            out = [(p * (1 - FULL_PARALYSIS_CHANCE), hit, crit, roll_idx, effect, False)
+            out = [(p * (1 - FULL_PARALYSIS_CHANCE), hit, crit, roll_idx, effect, False, None)
                    for (p, hit, crit, roll_idx, effect) in fanned]
-            out.append((FULL_PARALYSIS_CHANCE, True, False, None, False, True))
+            out.append((FULL_PARALYSIS_CHANCE, True, False, None, False, True, None))
             return out
 
-        return [(p, hit, crit, roll_idx, effect, False) for (p, hit, crit, roll_idx, effect) in fanned]
+        return [(p, hit, crit, roll_idx, effect, False, None) for (p, hit, crit, roll_idx, effect) in fanned]
 
     def enumerate_for_order(order: list[str], order_weight: float) -> list[Outcome]:
         first, second = order[0], order[1]
         outs: list[Outcome] = []
 
-        for p1, hit1, crit1, roll1, effect1, para1 in branches_for(state, first):
+        for p1, hit1, crit1, roll1, effect1, para1, protect1 in branches_for(state, first):
             s1 = state.clone()
             log1 = [] if include_descriptions else _NullLog()
             a1 = actions[first]
@@ -660,7 +681,7 @@ def enumerate_turn_outcomes(
                     attacker, defender, move, s1.field,
                     rng=_ENUM_RNG, log=log1,
                     force_hit=hit1, force_crit=crit1, force_roll_index=roll1,
-                    force_effect=effect1, force_full_para=para1, attacker_side=first,
+                    force_effect=effect1, force_full_para=para1, force_protect_success=protect1, attacker_side=first,
                 )
 
             first_wiped = s1.team_wiped(s1.other_side(first))
@@ -679,7 +700,7 @@ def enumerate_turn_outcomes(
             # AFTER the first move resolved -- not from the original
             # `state`. This is what makes switches-into-immunity and
             # stat/status-changing first moves evaluate correctly.
-            for p2, hit2, crit2, roll2, effect2, para2 in branches_for(s1, second):
+            for p2, hit2, crit2, roll2, effect2, para2, protect2 in branches_for(s1, second):
                 s2 = s1.clone()
                 log2 = list(log1) if include_descriptions else _NullLog()
                 a2 = actions[second]
@@ -695,7 +716,7 @@ def enumerate_turn_outcomes(
                         attacker, defender, move, s2.field,
                         rng=_ENUM_RNG, log=log2,
                         force_hit=hit2, force_crit=crit2, force_roll_index=roll2,
-                        force_effect=effect2, force_full_para=para2, attacker_side=second,
+                        force_effect=effect2, force_full_para=para2, force_protect_success=protect2, attacker_side=second,
                     )
 
                 if not s2.is_terminal():
