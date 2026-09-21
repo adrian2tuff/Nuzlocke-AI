@@ -123,32 +123,20 @@ class Pokemon:
         return max(0.0, self.current_hp / self.max_hp)
 
     def clone(self) -> "Pokemon":
-        """Copy only battle-mutable data without invoking copy's generic machinery."""
+        """Copy only battle-mutable data without invoking generic copy machinery."""
         clone = object.__new__(Pokemon)
         clone.__dict__ = self.__dict__.copy()
 
-        # Move PP is mutable during simulation, so every hypothetical Pokemon
-        # needs independent Move objects. Other Move fields are immutable.
-        clone.moves = [
-            Move(
-                name=mv.name,
-                type=mv.type,
-                category=mv.category,
-                power=mv.power,
-                accuracy=mv.accuracy,
-                pp=mv.pp,
-                priority=mv.priority,
-                crit_ratio=mv.crit_ratio,
-                effect=mv.effect,
-                effect_chance=mv.effect_chance,
-                effect_data=mv.effect_data,
-                makes_contact=mv.makes_contact,
-                sound_based=mv.sound_based,
-                hits_min=mv.hits_min,
-                hits_max=mv.hits_max,
-            )
-            for mv in self.moves
-        ]
+        # Move PP is mutable during simulation, so each hypothetical Pokemon
+        # needs independent Move objects. The rest of Move is treated as
+        # immutable battle data, so copying its __dict__ is much cheaper than
+        # rebuilding the dataclass field-by-field.
+        clone.moves = []
+        for mv in self.moves:
+            move_clone = object.__new__(Move)
+            move_clone.__dict__ = mv.__dict__.copy()
+            clone.moves.append(move_clone)
+
         clone.stat_stages = self.stat_stages.copy()
         clone.volatile = self.volatile.copy()
         return clone
