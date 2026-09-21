@@ -54,6 +54,7 @@ class Pokemon:
     status: str | None = None                 # major status: burn/poison/toxic/paralysis/sleep/freeze
     status_turns: int = 0                      # e.g. sleep counter, toxic counter
     volatile: set[str] = field(default_factory=set)   # confusion, flinch, etc.
+    protect_streak: int = 0
     stat_stages: dict[str, int] = field(default_factory=lambda: {
         "atk": 0, "def": 0, "spa": 0, "spd": 0, "spe": 0, "accuracy": 0, "evasion": 0,
     })
@@ -139,6 +140,7 @@ class Pokemon:
 
         clone.stat_stages = self.stat_stages.copy()
         clone.volatile = self.volatile.copy()
+        clone.protect_streak = self.protect_streak
         return clone
 
     def display_name(self) -> str:
