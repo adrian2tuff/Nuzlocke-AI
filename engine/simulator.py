@@ -326,7 +326,8 @@ def _apply_switch(state: BattleState, side: str, target_index: int, log: list[st
 
     # Spikes only affect grounded Pokemon. One, two, and three layers deal
     # 1/8, 1/6, and 1/4 of max HP respectively.
-    if "flying" not in incoming.species.types:
+    grounded = "flying" not in incoming.species.types and incoming.ability != "levitate"
+    if grounded:
         layers = hazards["spikes"]
         if layers:
             fractions = {1: 1/8, 2: 1/6, 3: 1/4}
@@ -340,7 +341,7 @@ def _apply_switch(state: BattleState, side: str, target_index: int, log: list[st
 
     # Toxic Spikes only affect grounded Pokemon. Poison types absorb the
     # hazard when they switch in, removing all Toxic Spikes on that side.
-    if "flying" not in incoming.species.types:
+    if grounded:
         toxic_layers = hazards["toxic_spikes"]
         if toxic_layers:
             if "poison" in incoming.species.types:
@@ -390,6 +391,11 @@ def step(
     if not new_state.is_terminal():
         _apply_status_damage(new_state.player_mon, log)
         _apply_status_damage(new_state.enemy_mon, log)
+        for mon in (new_state.player_mon, new_state.enemy_mon):
+            if not mon.is_fainted and mon.item == "leftovers":
+                healing = max(1, mon.max_hp // 16)
+                mon.current_hp = min(mon.max_hp, mon.current_hp + healing)
+                log.append(f"{mon.display_name()} restored {healing} HP with Leftovers!")
 
     new_state.turn += 1
     return new_state
