@@ -220,7 +220,10 @@ class TestBattleMechanics(unittest.TestCase):
 
         switched = outcomes[0].state
         switch = {"type": "switch", "target_index": 1}
-        enemy = {"type": "move", "move_index": 0}
+        # Use a switch for the opponent so this test isolates entry-hazard
+        # damage rather than depending on ability mechanics (Rotom's
+        # Levitate is not part of the current Phase 1 scope).
+        enemy = {"type": "switch", "target_index": 1}
         switch_outcomes = enumerate_turn_outcomes(switched, switch, enemy)
         for o in switch_outcomes:
             incoming = o.state.player_mon
