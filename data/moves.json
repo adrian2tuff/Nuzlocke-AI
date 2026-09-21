@@ -18,7 +18,7 @@
   "fire-blast":      {"type": "fire",     "category": "special",  "power": 110, "accuracy": 85,  "pp": 5, "effect": "burn", "effect_chance": 10, "effect_data": {"target": "other"}},
   "sludge-wave":     {"type": "poison",   "category": "special",  "power": 95,  "accuracy": 100, "pp": 10, "effect": "poison", "effect_chance": 10, "effect_data": {"target": "other"}},
   "ice-beam":        {"type": "ice",      "category": "special",  "power": 90,  "accuracy": 100, "pp": 10},
-  "protect":         {"type": "normal",   "category": "status",   "power": 0,   "accuracy": null, "pp": 10, "priority": 4},
+  "protect":         {"type": "normal",   "category": "status",   "power": 0,   "accuracy": null, "pp": 10, "priority": 4, "effect": "protect", "effect_chance": 100, "effect_data": {"target": "self"}},
   "swords-dance":    {"type": "normal",   "category": "status",   "power": 0,   "accuracy": null, "pp": 20, "effect": "stat_change", "effect_data": {"stat": "atk", "stages": 2, "target": "self"}},
   "recover":         {"type": "normal",   "category": "status",   "power": 0,   "accuracy": null, "pp": 10, "effect": "heal", "effect_data": {"fraction": 0.5, "target": "self"}},
   "toxic":           {"type": "poison",   "category": "status",   "power": 0,   "accuracy": 90,  "pp": 10, "effect": "toxic", "effect_chance": 100, "effect_data": {"target": "other"}},
