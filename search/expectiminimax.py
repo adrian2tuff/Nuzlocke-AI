@@ -66,7 +66,30 @@ class SearchResult:
     best_action: dict
     ranked: list[ActionResult] = dc_field(default_factory=list)
     nodes_evaluated: int = 0
+    cache_hits: int = 0
     depth: int = 0
+
+
+def _pokemon_key(mon) -> tuple:
+    """Hashable battle-relevant snapshot for the transposition table."""
+    return (
+        mon.species.name, mon.level, mon.current_hp, mon.status,
+        mon.status_turns, tuple(sorted(mon.volatile)),
+        tuple(sorted(mon.stat_stages.items())),
+        tuple(mv.pp for mv in mon.moves), mon.ability, mon.item,
+    )
+
+
+def _state_key(state: BattleState, depth: int, damage_buckets: int) -> tuple:
+    """Key a battle position without including its narration/log."""
+    field = state.field
+    return (
+        depth, damage_buckets, state.player_active, state.enemy_active,
+        tuple(_pokemon_key(mon) for mon in state.player_team),
+        tuple(_pokemon_key(mon) for mon in state.enemy_team),
+        field.weather, field.weather_turns, field.terrain, field.terrain_turns,
+        field.trick_room_turns, repr(field.hazards), repr(field.screens),
+    )
 
 
 def _quick_action_heuristic(state: BattleState, side: str, action: dict) -> float:
@@ -102,13 +125,23 @@ def _value(
     depth: int,
     damage_buckets: int,
     nodes: list[int],
+    transposition: dict[tuple, float],
+    cache_hits: list[int],
 ) -> float:
+    key = _state_key(state, depth, damage_buckets)
+    if key in transposition:
+        cache_hits[0] += 1
+        return transposition[key]
     nodes[0] += 1
 
     if state.is_terminal():
-        return evaluate(state, watch="player")
+        value = evaluate(state, watch="player")
+        transposition[key] = value
+        return value
     if depth == 0:
-        return evaluate(state, watch="player")
+        value = evaluate(state, watch="player")
+        transposition[key] = value
+        return value
 
     player_actions = state.legal_actions("player")
     enemy_actions = state.legal_actions("enemy")
@@ -116,7 +149,9 @@ def _value(
     if not player_actions or not enemy_actions:
         # Shouldn't normally happen (a non-terminal state always has a legal
         # action -- forced switch if active fainted) but guard anyway.
-        return evaluate(state, watch="player")
+        value = evaluate(state, watch="player")
+        transposition[key] = value
+        return value
 
     # Move ordering only affects pruning speed, never the result: try our
     # most-promising actions first (tightens alpha fast), and the enemy's
@@ -137,7 +172,7 @@ def _value(
             # (-inf, +inf) bounds -- see module docstring on why bounds
             # aren't threaded across this expectation/RNG boundary.
             expected = sum(
-                o.probability * _value(o.state, depth - 1, damage_buckets, nodes)
+                o.probability * _value(o.state, depth - 1, damage_buckets, nodes, transposition, cache_hits)
                 for o in outcomes
             )
             worst = min(worst, expected)
@@ -148,6 +183,7 @@ def _value(
         alpha = max(alpha, best)
         if alpha >= beta:
             break
+    transposition[key] = best
     return best
 
 
@@ -176,6 +212,8 @@ def search_best_action(
     player_actions = state.legal_actions("player")
     enemy_actions = state.legal_actions("enemy")
     nodes = [0]
+    cache_hits = [0]
+    transposition: dict[tuple, float] = {}
 
     results: list[ActionResult] = []
     for pa in player_actions:
@@ -208,6 +246,7 @@ def search_best_action(
         best_action=results[0].action if results else None,
         ranked=results,
         nodes_evaluated=nodes[0],
+        cache_hits=cache_hits[0],
         depth=depth,
     )
 
