@@ -230,6 +230,84 @@ class TestBattleMechanics(unittest.TestCase):
             expected = incoming.max_hp - max(1, int(incoming.max_hp * type_effectiveness("rock", incoming.species.types) / 8))
             self.assertEqual(incoming.current_hp, expected)
 
+    def test_spikes_stack_to_three_layers_and_damage_grounded_switch(self):
+        state = fresh_state()
+        store = DataStore()
+        state.player_mon.moves.append(store.build_move("spikes"))
+        spikes_index = len(state.player_mon.moves) - 1
+
+        # Set three layers through three turns, verifying the cap.
+        for _ in range(3):
+            outcomes = enumerate_turn_outcomes(
+                state,
+                {"type": "move", "move_index": spikes_index},
+                {"type": "switch", "target_index": 1},
+            )
+            state = outcomes[0].state
+
+        self.assertEqual(state.field.hazards["player"]["spikes"], 3)
+
+        outcomes = enumerate_turn_outcomes(
+            state,
+            {"type": "switch", "target_index": 1},
+            {"type": "switch", "target_index": 0},
+        )
+        incoming = outcomes[0].state.player_mon
+        expected = incoming.max_hp - int(incoming.max_hp / 4)
+        self.assertEqual(incoming.current_hp, expected)
+
+    def test_spikes_do_not_damage_flying_switch_in(self):
+        state = fresh_state()
+        state.field.hazards["player"]["spikes"] = 3
+        outcomes = enumerate_turn_outcomes(
+            state,
+            {"type": "switch", "target_index": 2},  # Corviknight
+            {"type": "switch", "target_index": 1},
+        )
+        incoming = outcomes[0].state.player_mon
+        self.assertEqual(incoming.current_hp, incoming.max_hp)
+
+    def test_toxic_spikes_poison_and_badly_poison_at_two_layers(self):
+        state = fresh_state()
+        state.field.hazards["player"]["toxic_spikes"] = 1
+        outcomes = enumerate_turn_outcomes(
+            state,
+            {"type": "switch", "target_index": 1},  # Rotom-Wash is grounded for now
+            {"type": "switch", "target_index": 1},
+        )
+        self.assertEqual(outcomes[0].state.player_mon.status, "poison")
+
+        state = fresh_state()
+        state.field.hazards["player"]["toxic_spikes"] = 2
+        outcomes = enumerate_turn_outcomes(
+            state,
+            {"type": "switch", "target_index": 1},
+            {"type": "switch", "target_index": 1},
+        )
+        self.assertEqual(outcomes[0].state.player_mon.status, "toxic")
+
+    def test_poison_type_absorbs_toxic_spikes(self):
+        state = fresh_state()
+        state.field.hazards["player"]["toxic_spikes"] = 2
+
+        # Use Nidoking as a controlled Poison-type incoming Pokemon.
+        state.player_team.append(DataStore().build_pokemon({
+            "species": "nidoking",
+            "level": 45,
+            "nature": "adamant",
+            "moves": ["earthquake"],
+        }))
+
+        outcomes = enumerate_turn_outcomes(
+            state,
+            {"type": "switch", "target_index": 3},
+            {"type": "switch", "target_index": 1},
+        )
+        result = outcomes[0].state
+        self.assertEqual(result.player_mon.species.name, "nidoking")
+        self.assertIsNone(result.player_mon.status)
+        self.assertEqual(result.field.hazards["player"]["toxic_spikes"], 0)
+
     def test_explosion_faints_user(self):
         state = fresh_state()
         state.player_active = 1
