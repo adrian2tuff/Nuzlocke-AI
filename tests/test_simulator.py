@@ -564,7 +564,9 @@ class TestBattleMechanics(unittest.TestCase):
         outcomes = enumerate_turn_outcomes(
             state,
             {"type": "move", "move_index": idx},
-            {"type": "switch", "target_index": 1},
+            # Switch to Nidoking (index 0), so even the 5-hit branch
+            # remains observable instead of Rock Blast KOing Charizard first.
+            {"type": "switch", "target_index": 0},
             damage_buckets=1,
         )
         self.assertGreaterEqual(len(outcomes), 2)
