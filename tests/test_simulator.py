@@ -208,7 +208,12 @@ class TestEnumeration(unittest.TestCase):
 class TestBattleMechanics(unittest.TestCase):
     def test_stealth_rock_sets_hazard_and_damages_switch_in(self):
         state = fresh_state()
-        set_rocks = {"type": "move", "move_index": 6}
+        # Stealth Rock is not part of the demo team's normal moveset, so
+        # add the real data-defined move to the active Garchomp for this
+        # controlled mechanics test.
+        store = DataStore()
+        state.player_mon.moves.append(store.build_move("stealth-rock"))
+        set_rocks = {"type": "move", "move_index": len(state.player_mon.moves) - 1}
         enemy_action = {"type": "move", "move_index": 0}
         outcomes = enumerate_turn_outcomes(state, set_rocks, enemy_action)
         self.assertTrue(all(o.state.field.hazards["player"]["stealth_rock"] for o in outcomes))
