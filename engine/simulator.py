@@ -93,6 +93,7 @@ def resolve_move(
     force_effect: bool | None = None,
     force_full_para: bool | None = None,
     force_protect_success: bool | None = None,
+    force_hit_count: int | None = None,
     attacker_side: str | None = None,
 ) -> None:
     """Mutates attacker/defender/field in place. All randomness is drawn from
@@ -167,12 +168,51 @@ def resolve_move(
 
     is_crit = force_crit if force_crit is not None else (rng.random() < _crit_chance(move))
     rolls = damage_rolls(attacker, defender, move, field, is_crit=is_crit)
-    roll_idx = force_roll_index if force_roll_index is not None else rng.randrange(len(rolls))
-    dmg = rolls[roll_idx]
+    hit_count = force_hit_count if force_hit_count is not None else (
+        rng.randint(move.hits_min, move.hits_max) if move.hits_max > move.hits_min else move.hits_min
+    )
 
-    defender.current_hp = max(0, defender.current_hp - dmg)
+    total_damage = 0
+    for hit_number in range(hit_count):
+        if defender.is_fainted:
+            break
+        roll_idx = force_roll_index if force_roll_index is not None else rng.randrange(len(rolls))
+        dmg = rolls[roll_idx]
+        defender.current_hp = max(0, defender.current_hp - dmg)
+        total_damage += dmg
 
-    if move.makes_contact and defender.ability == "rough-skin" and dmg > 0:
+        if move.makes_contact and defender.ability == "rough-skin" and dmg > 0:
+            rough_damage = max(1, defender.max_hp // 8)
+            attacker.current_hp = max(0, attacker.current_hp - rough_damage)
+            log.append(f"{attacker.display_name()} was hurt by Rough Skin! (-{rough_damage} HP)")
+            if attacker.is_fainted:
+                log.append(f"{attacker.display_name()} fainted!")
+                break
+
+        if attacker.item == "life-orb" and dmg > 0:
+            life_damage = max(1, attacker.max_hp // 10)
+            attacker.current_hp = max(0, attacker.current_hp - life_damage)
+            log.append(f"{attacker.display_name()} lost HP from Life Orb! (-{life_damage} HP)")
+            if attacker.is_fainted:
+                log.append(f"{attacker.display_name()} fainted!")
+                break
+
+        log.append(
+            f"{attacker.display_name()} used {move.name}! "
+            f"{'A critical hit! ' if is_crit else ''}"
+            f"Hit {hit_number + 1}/{hit_count}: {defender.display_name()} took {dmg} damage "
+            f"({defender.current_hp}/{defender.max_hp} HP left)."
+        )
+
+        if defender.is_fainted:
+            log.append(f"{defender.display_name()} fainted!")
+            break
+
+        # Per-hit secondary effects can trigger independently.
+        if move.effect and (force_effect if force_effect is not None else rng.random() * 100 < move.effect_chance):
+            _apply_move_effect(move, attacker, defender, log, damage_dealt=dmg)
+
+    return
         rough_damage = max(1, defender.max_hp // 8)
         attacker.current_hp = max(0, attacker.current_hp - rough_damage)
         log.append(f"{attacker.display_name()} was hurt by Rough Skin! (-{rough_damage} HP)")
