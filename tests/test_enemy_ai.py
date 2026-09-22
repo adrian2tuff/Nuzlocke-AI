@@ -34,7 +34,7 @@ class TestEnemyAI(unittest.TestCase):
         player = make_mon("Player",["grass"],[attack("tackle","normal",40)])
         active = make_mon("Active",["water"],[attack("water-gun","water",40)])
         bench = make_mon("Bench",["fire"],[attack("flamethrower","fire",120)])
-        active.current_hp = 20
+        player.current_hp = 20
         state = BattleState([player],[active,bench])
         self.assertEqual(switch_in_score(state,1,rng=random.Random(0)),5)
 
@@ -43,7 +43,7 @@ class TestEnemyAI(unittest.TestCase):
         active = make_mon("Active",["water"],[attack("water-gun","water",40)])
         bench = make_mon("Bench",["fire"],[attack("flamethrower","fire",120)])
         bench.stat_stages["spe"] = -6
-        active.current_hp = 20
+        player.current_hp = 20
         state = BattleState([player],[active,bench])
         self.assertEqual(switch_in_score(state,1,rng=random.Random(0)),4)
 
@@ -59,7 +59,7 @@ class TestEnemyAI(unittest.TestCase):
         active = make_mon("Active",["water"],[attack("water-gun","water",40)])
         bench = make_mon("Bench",["fire"],[attack("ember","fire",40)])
         bench.stat_stages["spe"] = -6
-        active.current_hp = 20
+        player.current_hp = 20
         state = BattleState([player],[active,bench])
         self.assertEqual(switch_in_score(state,1,rng=random.Random(0)),-1)
 
