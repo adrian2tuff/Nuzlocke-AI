@@ -1,14 +1,9 @@
 """
 BattleState: everything needed to fully determine what happens next.
-Deliberately a plain, deep-copyable object (no engine logic lives on it) so
-the simulator can freely branch into hypothetical futures via `.clone()`.
 """
 
 from __future__ import annotations
 
-# NOTE: aliased to avoid a name collision -- BattleState has an attribute
-# literally called `field` (the battlefield conditions), which would shadow
-# dataclasses.field() if imported under its normal name.
 from dataclasses import dataclass, field as dc_field
 
 from .pokemon import Pokemon
@@ -16,11 +11,10 @@ from .pokemon import Pokemon
 
 @dataclass
 class Field:
-    weather: str | None = None          # "rain" | "sun" | "sand" | "hail" | None
+    weather: str | None = None
     weather_turns: int = 0
     terrain: str | None = None
     terrain_turns: int = 0
-    # Per-side hazards/screens: side is "player" or "enemy"
     hazards: dict = dc_field(default_factory=lambda: {
         "player": {"stealth_rock": False, "spikes": 0, "toxic_spikes": 0},
         "enemy": {"stealth_rock": False, "spikes": 0, "toxic_spikes": 0},
@@ -42,7 +36,6 @@ class BattleState:
     turn: int = 0
     log: list[str] = dc_field(default_factory=list)
 
-    # -- convenience accessors -------------------------------------------
     @property
     def player_mon(self) -> Pokemon:
         return self.player_team[self.player_active]
@@ -58,8 +51,7 @@ class BattleState:
         return self.player_active if side == "player" else self.enemy_active
 
     def active_mon(self, side: str) -> Pokemon:
-        team = self.side_team(side)
-        return team[self.active_index(side)]
+        return self.side_team(side)[self.active_index(side)]
 
     def set_active_index(self, side: str, idx: int) -> None:
         if side == "player":
@@ -70,7 +62,6 @@ class BattleState:
     def other_side(self, side: str) -> str:
         return "enemy" if side == "player" else "player"
 
-    # -- terminal checks ---------------------------------------------------
     def team_wiped(self, side: str) -> bool:
         return all(p.is_fainted for p in self.side_team(side))
 
@@ -86,23 +77,23 @@ class BattleState:
             return "draw"
         return None
 
-    # -- legal actions -------------------------------------------------
     def legal_actions(self, side: str) -> list[dict]:
-        """
-        Returns a list of legal action dicts:
-          {"type": "move", "move_index": i}
-          {"type": "switch", "target_index": i}
-        A fainted active Pokemon can only switch (forced switch).
-        """
         actions = []
         mon = self.active_mon(side)
         team = self.side_team(side)
 
         if not mon.is_fainted:
-            for i, mv in enumerate(mon.moves):
+            if mon.item in ("choice-band", "choice-specs", "choice-scarf") and mon.choice_lock is not None:
+                mv = mon.moves[mon.choice_lock]
                 if mv.pp > 0:
-                    actions.append({"type": "move", "move_index": i})
-            # If no PP left anywhere, Struggle would apply -- omitted in Phase 1.
+                    actions.append({"type": "move", "move_index": mon.choice_lock})
+            else:
+                for i, mv in enumerate(mon.moves):
+                    if mv.pp > 0:
+                        # Choice items cannot select status moves.
+                        if mon.item in ("choice-band", "choice-specs", "choice-scarf") and mv.category == "status":
+                            continue
+                        actions.append({"type": "move", "move_index": i})
 
         for i, p in enumerate(team):
             if i != self.active_index(side) and not p.is_fainted:
@@ -111,13 +102,10 @@ class BattleState:
         return actions
 
     def clone(self) -> "BattleState":
-        # Avoid generic copy machinery: this method is on the hottest path
-        # in search and every nested object is copied only as deeply as needed.
         clone = object.__new__(BattleState)
         clone.__dict__ = self.__dict__.copy()
         clone.player_team = [p.clone() for p in self.player_team]
         clone.enemy_team = [p.clone() for p in self.enemy_team]
-
         clone.field = object.__new__(Field)
         clone.field.__dict__ = self.field.__dict__.copy()
         clone.field.hazards = {
