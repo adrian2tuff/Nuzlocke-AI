@@ -167,5 +167,62 @@ class TestEnemyPolicy(unittest.TestCase):
         state = BattleState([player], [enemy])
         self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 1.0)
 
+
+    def test_sleep_scores_one_when_target_can_sleep(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [move("spore", "grass", "status", 0)])
+        enemy.moves[0].effect = "sleep"
+        state = BattleState([player], [enemy])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 1.0)
+
+    def test_sleep_gets_synergy_bonus(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [
+            move("spore", "grass", "status", 0),
+            move("dream-eater", "psychic", "special", 100),
+        ])
+        enemy.moves[0].effect = "sleep"
+        state = BattleState([player], [enemy])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 2.0)
+
+    def test_poison_scores_one_against_passive_target(self):
+        player = make_mon("Player", ["normal"], [move("toxic", "poison", "status", 0)])
+        enemy = make_mon("Enemy", ["normal"], [move("poison", "poison", "status", 0)])
+        enemy.moves[0].effect = "poison"
+        state = BattleState([player], [enemy])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 1.0)
+
+    def test_paralysis_rewards_slow_ai(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("normal-enemy", ["normal"], [move("thunder-wave", "electric", "status", 0)])
+        enemy.moves[0].effect = "paralysis"
+        enemy.stat_stages["spe"] = -6
+        state = BattleState([player], [enemy])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 2.0)
+
+    def test_burn_rewards_physical_player(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["fire"], [move("will-o-wisp", "fire", "status", 0)])
+        enemy.moves[0].effect = "burn"
+        state = BattleState([player], [enemy])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 2.0)
+
+    def test_confusion_scores_one(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["psychic"], [move("confuse-ray", "ghost", "status", 0)])
+        enemy.moves[0].effect = "confusion"
+        state = BattleState([player], [enemy])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 1.0)
+
+    def test_status_is_ignored_when_max_roll_guarantees_ko(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["fire"], [
+            move("will-o-wisp", "fire", "status", 0),
+            move("blast", "fire", "special", 500),
+        ])
+        enemy.moves[0].effect = "burn"
+        state = BattleState([player], [enemy])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 0.0)
+
 if __name__ == "__main__":
     unittest.main()
