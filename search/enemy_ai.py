@@ -216,6 +216,40 @@ def _score_recovery_move(state, attacker, defender, move, rng):
         return 1.0 if _random_chance(rng, 0.75) else 0.0
     return -1.0
 
+PIVOT_MOVES = {"u-turn", "volt-switch", "flip-turn", "parting-shot"}
+
+def _has_phazing_move(pokemon):
+    return _has_move_named(pokemon, {"roar", "whirlwind", "dragon-tail", "circle-throw"})
+
+def _score_pivot_move(state, attacker, defender, move, rng):
+    name = _move_name(move)
+    if name == "baton-pass":
+        if _has_phazing_move(defender):
+            has_boost = any(v > 0 for v in attacker.stat_stages.values())
+            if not has_boost:
+                return -20.0
+        return -1.0 if _random_chance(rng, 0.25) else 0.0
+
+    if name not in PIVOT_MOVES:
+        return None
+
+    if attacker.ability.lower().replace(" ", "-") == "zero-to-hero" and name == "flip-turn":
+        return 12.0
+
+    if _has_phazing_move(defender):
+        base = 6.0
+        return -1.0
+
+    hits = _player_kill_hits(attacker, defender, state.field)
+    if hits > 3:
+        return 6.0
+
+    # Parting Shot starts at the ordinary utility baseline.
+    if name == "parting-shot":
+        return 6.0
+
+    return 6.0
+
 PROTECTION_MOVES = {"protect", "detect", "baneful-bunker", "kings-shield", "silk-trap", "obstruct", "spiky-shield", "burning-bulwark", "endure"}
 
 def _end_turn_damage_estimate(mon):
@@ -657,6 +691,10 @@ def score_enemy_move(state, action, *, side="enemy", rng=None):
     self_destruct_score = _score_self_destruct_move(state, mon, opponent, move, side, rng)
     if self_destruct_score is not None:
         return self_destruct_score
+
+    pivot_score = _score_pivot_move(state, mon, opponent, move, rng)
+    if pivot_score is not None:
+        return pivot_score
 
     protection_score = _score_protection_move(state, mon, opponent, move, rng)
     if protection_score is not None:
