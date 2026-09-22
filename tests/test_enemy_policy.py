@@ -80,7 +80,6 @@ class TestEnemyPolicy(unittest.TestCase):
         enemy = make_mon("Enemy", ["fire"], [
             move("blast", "fire", "special", 500),
         ])
-        enemy.stat_stages["spe"] = -6
         state = BattleState([player], [enemy])
         action = {"type": "move", "move_index": 0}
         self.assertEqual(score_enemy_move(state, action), 12.0)
