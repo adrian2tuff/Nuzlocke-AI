@@ -647,6 +647,58 @@ class TestEnemyPolicy(unittest.TestCase):
         state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
         self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 7.0)
 
+
+    def test_swagger_rewards_psych_up_synergy(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [
+            move("swagger", "normal", "status", 0),
+            move("psych-up", "normal", "status", 0),
+        ])
+        state = BattleState([player], [enemy])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 2.0)
+
+    def test_swagger_rewards_foul_play_target(self):
+        player = make_mon("Player", ["normal"], [
+            move("foul-play", "dark", "physical", 95),
+        ])
+        enemy = make_mon("Enemy", ["normal"], [move("swagger", "normal", "status", 0)])
+        state = BattleState([player], [enemy])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 2.0)
+
+    def test_flatter_rewards_spectral_thief_synergy(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [
+            move("flatter", "dark", "status", 0),
+            move("spectral-thief", "ghost", "physical", 90),
+        ])
+        state = BattleState([player], [enemy])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 2.0)
+
+    def test_speed_lowering_rewards_being_slower(self):
+        player = make_mon("Fast", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Slow", ["normal"], [move("rock-tomb", "rock", "physical", 60)])
+        enemy.moves[0].effect = "stat_change"
+        enemy.moves[0].effect_data = {"stat": "spe", "stages": -1}
+        enemy.stat_stages["spe"] = -6
+        state = BattleState([player], [enemy])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 0.0)
+
+    def test_attack_lowering_is_penalized_without_physical_moves(self):
+        player = make_mon("Player", ["normal"], [move("growl", "normal", "status", 0)])
+        enemy = make_mon("Enemy", ["normal"], [move("growl", "normal", "status", 0)])
+        enemy.moves[0].effect = "stat_change"
+        enemy.moves[0].effect_data = {"stat": "atk", "stages": -1}
+        state = BattleState([player], [enemy])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), -2.0)
+
+    def test_accuracy_lowering_rewards_healthy_ai(self):
+        player = make_mon("Player", ["normal"], [move("sand-attack", "ground", "status", 0)])
+        enemy = make_mon("Enemy", ["normal"], [move("sand-attack", "ground", "status", 0)])
+        enemy.moves[0].effect = "stat_change"
+        enemy.moves[0].effect_data = {"stat": "accuracy", "stages": -1}
+        state = BattleState([player], [enemy])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}, rng=random.Random(1)), 2.0)
+
 if __name__ == "__main__":
     unittest.main()
 
