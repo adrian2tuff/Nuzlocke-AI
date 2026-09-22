@@ -423,6 +423,53 @@ class TestEnemyPolicy(unittest.TestCase):
         state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
         self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), -20.0)
 
+    def test_taunt_rewards_status_target(self):
+        player = make_mon("Player", ["normal"], [move("protect", "normal", "status", 0)])
+        enemy = make_mon("Enemy", ["normal"], [move("taunt", "dark", "status", 0)])
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}, rng=random.Random(1)), 1.0)
+
+    def test_taunt_penalized_without_status_target(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [move("taunt", "dark", "status", 0)])
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}, rng=random.Random(1)), -1.0)
+
+    def test_encore_rewards_encouraged_last_move(self):
+        player = make_mon("Player", ["normal"], [move("protect", "normal", "status", 0)])
+        player.volatile.add("last-status")
+        enemy = make_mon("Enemy", ["normal"], [move("encore", "normal", "status", 0)])
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 1.0)
+
+    def test_disable_rewards_blocking_last_ko(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        player.volatile.add("last-move-ko")
+        enemy = make_mon("Enemy", ["normal"], [move("disable", "normal", "status", 0)])
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 1.0)
+
+    def test_substitute_penalized_by_infiltrator(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        player.volatile.add("infiltrator")
+        enemy = make_mon("Enemy", ["normal"], [move("substitute", "normal", "status", 0)])
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), -20.0)
+
+    def test_destiny_bond_rewards_fast_imminent_ko(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 500)])
+        enemy = make_mon("Enemy", ["normal"], [move("destiny-bond", "ghost", "status", 0)])
+        enemy.current_hp = 50
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}, rng=random.Random(1)), 1.0)
+
+    def test_destiny_bond_penalized_with_disguise(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [move("destiny-bond", "ghost", "status", 0)])
+        enemy.volatile.add("disguise")
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), -20.0)
+
     def test_explosion_prefers_low_hp(self):
         player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
         enemy = make_mon("Enemy", ["normal"], [move("explosion", "normal", "physical", 250)])
