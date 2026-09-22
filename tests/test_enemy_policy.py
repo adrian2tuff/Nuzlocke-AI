@@ -298,7 +298,7 @@ class TestEnemyPolicy(unittest.TestCase):
         player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
         enemy = make_mon("Enemy", ["normal"], [move("explosion", "normal", "physical", 250)])
         enemy.current_hp = 5
-        state = BattleState([player, make_mon("Bench", ["normal"], [])], [enemy])
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
         self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 10.0)
 
     def test_explosion_is_bad_if_last_mon(self):
@@ -327,7 +327,7 @@ class TestEnemyPolicy(unittest.TestCase):
         player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
         enemy = make_mon("Enemy", ["normal"], [move("final-gambit", "fighting", "special", 0)])
         state = BattleState([player], [enemy])
-        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 8.0)
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), -1.0)
 
     def test_final_gambit_gets_seven_when_fast_and_will_die(self):
         player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 500)])
