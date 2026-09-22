@@ -112,6 +112,7 @@ class TestHazardStrategy(unittest.TestCase):
         self.assertFalse(field.hazards["player"]["stealth_rock"])
         self.assertEqual(field.hazards["player"]["spikes"], 0)
         self.assertEqual(field.hazards["player"]["toxic_spikes"], 0)
+        self.assertFalse(field.hazards["player"].get("sticky_web", False))
 
     def test_hazard_stacking_is_more_valuable_against_grounded_team(self):
         setter = make_mon("Setter", ["rock"], [])
