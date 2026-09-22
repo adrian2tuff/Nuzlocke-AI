@@ -333,7 +333,7 @@ class TestEnemyPolicy(unittest.TestCase):
         player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 500)])
         enemy = make_mon("Enemy", ["normal"], [move("final-gambit", "fighting", "special", 0)])
         enemy.stat_stages["spe"] = -6
-        state = BattleState([player, make_mon("Bench", ["normal"], [])], [enemy])
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
         self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 7.0)
 
 if __name__ == "__main__":
