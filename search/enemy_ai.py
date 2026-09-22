@@ -136,7 +136,7 @@ def choose_switch_in(state, *, side="enemy", rng=None):
             best, best_score = index, score
     return best
 
-def score_enemy_move(state, action, *, side="enemy", rng=None):
+def _score_status_move(attacker, defender, move):\n    """Documented Null baseline for non-damaging moves.\n\n    Move-specific exceptions will be layered on separately once their exact\n    rules are encoded; the baseline is +6.\n    """\n    return 6.0\n\ndef score_enemy_move(state, action, *, side="enemy", rng=None):
     """Generic Null move score.
 
     The documented Null baseline is:
