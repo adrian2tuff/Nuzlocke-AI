@@ -155,7 +155,7 @@ def _score_status_move(state, attacker, defender, move, rng=None):
             score += 2.0
         return score
 
-    if move.effect in {"poison", "toxic"} or name in {"poison-powder", "toxic", "poison-gas"}:
+    if move.effect in {"poison", "toxic"}:
         if not target_can_status or defender.current_hp <= defender.max_hp * 0.20:
             return -20.0
         score = 0.0
