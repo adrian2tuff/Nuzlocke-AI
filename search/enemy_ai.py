@@ -407,20 +407,19 @@ def _score_advanced_utility_move(state, attacker, defender, move, rng):
         return 15.0
 
     if name == "laser-focus":
-        if attacker.ability.lower().replace(" ", "-") == "sniper":
-            return 1.0
         if "crit-immune" in defender.volatile:
             return -20.0
-        return 6.0
+        return 7.0 if attacker.ability.lower().replace(" ", "-") == "sniper" else 6.0
 
     if name == "focus-energy":
         if "crit-immune" in defender.volatile:
             return -20.0
+        score = 6.0
         if (attacker.ability.lower().replace(" ", "-") in {"sniper", "super-luck"}
                 or attacker.item == "scope-lens"
                 or any(m.crit_ratio > 0 for m in attacker.moves)):
-            return 1.0
-        return 6.0
+            score += 1.0
+        return score
 
     if name == "conversion":
         # Conversion changes type based on the user's first move.
