@@ -3,7 +3,7 @@ import unittest
 from engine.pokemon import Move, Pokemon, Species
 from engine.simulator import resolve_move
 from engine.state import BattleState
-from search.evaluator import evaluate_breakdown
+from search.evaluator import evaluate_breakdown, _switch_punishment_score
 
 
 def make_mon(name, types, moves):
@@ -25,6 +25,36 @@ def make_mon(name, types, moves):
 
 
 class TestHazardStrategy(unittest.TestCase):
+    def test_trapping_favorable_matchup_is_valuable(self):
+        player = make_mon("Player", ["water"], [])
+        enemy = make_mon("Enemy", ["fire"], [])
+        bench = make_mon("Bench", ["normal"], [])
+
+        state = BattleState(
+            player_team=[player],
+            enemy_team=[enemy, bench],
+        )
+
+        baseline = _switch_punishment_score(state, "player")
+        state.enemy_mon.volatile.add("trapped")
+        trapped = _switch_punishment_score(state, "player")
+
+        self.assertEqual(baseline, 0.0)
+        self.assertGreater(trapped, 0.0)
+
+    def test_trapping_bad_matchup_is_not_rewarded(self):
+        player = make_mon("Player", ["fire"], [])
+        enemy = make_mon("Enemy", ["water"], [])
+        bench = make_mon("Bench", ["normal"], [])
+
+        state = BattleState(
+            player_team=[player],
+            enemy_team=[enemy, bench],
+        )
+        state.enemy_mon.volatile.add("trapped")
+
+        self.assertEqual(_switch_punishment_score(state, "player"), 0.0)
+
     def test_hazard_removal_clears_all_own_hazards(self):
         rapid_spin = Move(
             name="rapid-spin",
