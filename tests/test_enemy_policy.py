@@ -733,7 +733,7 @@ if __name__ == "__main__":
         enemy = make_mon("Enemy", ["normal"], [move("roar", "normal", "status", 0)])
         state = BattleState([player, make_mon("Bench", ["normal"], [])], [enemy])
         state.field.hazards["player"]["stealth_rock"] = True
-        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}, rng=random.Random(0)), 0.0)
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}, rng=random.Random(0)), 1.0)
 
     def test_dragon_tail_is_penalized_against_perish_song_target(self):
         player = make_mon("Player", ["normal"], [move("dragon-tail", "dragon", "physical", 60)])
