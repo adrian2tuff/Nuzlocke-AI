@@ -243,8 +243,18 @@ def resolve_move(
             and move.effect is not None
             and move.effect_chance > 0
         )
-        if move.effect and not sheer_force and (force_effect if force_effect is not None else rng.random() * 100 < move.effect_chance):
+        if move.effect and move.effect != "hazard_removal" and not sheer_force and (force_effect if force_effect is not None else rng.random() * 100 < move.effect_chance):
             _apply_move_effect(move, attacker, defender, log, damage_dealt=dmg, rng=rng)
+
+    # Rapid Spin-style effects remove hazards after the move connects. This
+    # is deliberately outside the per-hit loop so a KO does not prevent the
+    # successful move from clearing the field.
+    if (
+        move.effect == "hazard_removal"
+        and total_damage > 0
+        and not attacker.is_fainted
+    ):
+        _apply_move_effect(move, attacker, defender, log, field=field, attacker_side=attacker_side, damage_dealt=total_damage, rng=rng)
 
     sheer_force = (
         attacker.ability == "sheer-force"
@@ -321,6 +331,22 @@ def _apply_move_effect(
     if eff == "protect":
         attacker.volatile.add("protect")
         log.append(f"{attacker.display_name()} protected itself!")
+        return
+    if eff == "hazard_removal":
+        if field is not None and attacker_side is not None:
+            hazards = field.hazards[attacker_side]
+            removed = []
+            if hazards["stealth_rock"]:
+                removed.append("Stealth Rock")
+            if hazards["spikes"]:
+                removed.append("Spikes")
+            if hazards["toxic_spikes"]:
+                removed.append("Toxic Spikes")
+            hazards["stealth_rock"] = False
+            hazards["spikes"] = 0
+            hazards["toxic_spikes"] = 0
+            if removed:
+                log.append(f"{attacker.display_name()} cleared {', '.join(removed)} from its side!")
         return
     if eff == "stealth_rock":
         if field is not None and attacker_side is not None:
