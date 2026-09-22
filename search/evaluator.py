@@ -73,7 +73,7 @@ def _replaceability_score(state: BattleState, side: str) -> float:
         if mon.is_fainted:
             contributions.append(0.0)
         else:
-            contributions.append(1.0 - replaceability.get(i, 0.5))
+            # Nonlinear preservation value: losing a highly unique teammate\n            # should hurt more than losing a moderately unique one. This\n            # keeps the evaluator aligned with the Nuzlocke objective rather\n            # than treating every surviving slot as interchangeable.\n            irreplaceability = 1.0 - replaceability.get(i, 0.5)\n            contributions.append(irreplaceability ** 2)
     return sum(contributions) / len(team)
 
 
