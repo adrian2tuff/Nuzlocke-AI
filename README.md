@@ -154,14 +154,95 @@ python -m unittest tests.test_replaceability -v
 
 The test suite is intended to protect mechanics as the engine grows, especially around RNG branching, status timing, switching, hazards, and multi-hit resolution.
 
-## Current next steps
+## Current AI roadmap
 
-1. Finish exact per-hit multi-hit RNG enumeration:
-   - independent crits
-   - independent damage rolls
-   - independent secondary-effect rolls
-   - exact early-KO behavior
-2. Expand move/ability/item coverage.
-3. Improve exact probability handling for more complex interactions.
-4. Continue search optimization after mechanics are stable.
-5. Expand Nuzlocke-specific evaluation using future encounters/trainers and run-level value.
+The project is moving from a battle simulator into a **Nuzlocke-aware search AI**. The long-term goal is not simply to find the highest-damage move; it is to search for good lines through an entire Nuzlocke while modeling the opponent's actual trainer behavior and the cost of losing irreplaceable Pokemon.
+
+### Phase 4 — Null trainer AI
+
+The enemy policy is being built to approximate the documented **Null battle AI** rather than treating the opponent as a perfect minimax player.
+
+Current coverage includes:
+
+- Move scoring and kill tiers.
+- Status, setup, recovery, pivot, phazing, and tactical-move scoring.
+- Reactive moves such as Counter, Mirror Coat, and Metal Burst.
+- Move-history-dependent behavior such as Encore and Disable.
+- Swagger / Flatter synergies.
+- Speed, offensive/defensive-stat, and accuracy-lowering behavior.
+- Hazard, weather, terrain, Tailwind, and Trick Room considerations.
+- Protect / Endure and other tactical edge cases.
+- Configurable enemy policies in expectiminimax.
+
+The Null AI is implemented as a policy layer on top of the battle engine. This keeps battle mechanics separate from the question of what an enemy trainer chooses to do.
+
+### Phase 5 — Doubles battle foundation
+
+Before implementing the Null doubles rules, the engine needs a proper doubles model while preserving the existing 1v1 API.
+
+Planned foundation:
+
+1. Two active Pokemon per side.
+2. Independent actions for each active Pokemon.
+3. Move targeting: opponent, ally, self, and spread targets.
+4. Priority and speed ordering across all actions.
+5. Fainting and replacement behavior for individual slots.
+6. Doubles-compatible field effects, hazards, weather, and terrain.
+7. Backward compatibility with all existing singles behavior.
+
+Once this foundation exists, implement the documented doubles Null AI behavior:
+
+- Helping Hand
+- Follow Me / Rage Powder
+- Heal Pulse / Floral Healing / Pollen Puff
+- Instruct
+- Coaching
+- Dragon Cheer
+- Ally Switch
+- Beat Up
+- partner ability synergies
+- spread-move scoring
+- priority / Weakness Policy interactions
+- partner-targeted status and utility behavior
+
+### Phase 6 — Stronger expectiminimax
+
+Once the simulator and enemy policy are sufficiently complete:
+
+- Search player actions against the Null enemy policy.
+- Preserve exact or bounded RNG probabilities.
+- Improve transposition caching and move ordering.
+- Add deeper-search performance benchmarks.
+- Make search depth adaptive to the tactical position.
+
+### Phase 7 — Nuzlocke-specific strategy
+
+This is where the project becomes more than a battle bot.
+
+The AI should reason about:
+
+- Pokemon replaceability and team roles.
+- Future encounters and available replacements.
+- Trainer teams and upcoming boss fights.
+- Death risk versus expected progress.
+- Resource preservation across a route/run.
+- When a safe line is preferable to a higher-damage line.
+- Long-term value of moves, items, and team members.
+
+The eventual objective is a planner that can answer questions like:
+
+> "Given my current team, available encounters, opponent team, and Nuzlocke rules, what line gives me the best chance of progressing without losing critical team members?"
+
+### Phase 8 — Full Nuzlocke planner
+
+Final integration:
+
+game state → candidate lines → battle simulation → enemy response → RNG branches → long-term evaluation → recommended line
+
+The planner should be able to search across multiple battles rather than treating each fight as an isolated encounter.
+
+## Immediate priority
+
+The next implementation step is **the doubles battle foundation**. Do not add individual doubles AI rules until the engine can represent and resolve doubles battles correctly.
+
+Mechanics completeness and correctness come before deeper search optimization. Every major engine change should add regression tests and preserve the existing single-battle test suite.
