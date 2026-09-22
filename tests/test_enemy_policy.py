@@ -294,6 +294,49 @@ class TestEnemyPolicy(unittest.TestCase):
         self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}, rng=random.Random(1)), 2.0)
 
 
+    def test_recovery_is_good_when_low_hp(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [move("recover", "normal", "status", 0)])
+        enemy.current_hp = 30
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 1.0)
+
+    def test_recovery_is_bad_at_full_hp(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [move("recover", "normal", "status", 0)])
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), -1.0)
+
+    def test_faster_recovery_can_survive_current_ko(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 80)])
+        enemy = make_mon("Enemy", ["normal"], [move("recover", "normal", "status", 0)])
+        enemy.current_hp = 40
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 1.0)
+
+    def test_slower_recovery_prefers_below_half(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [move("recover", "normal", "status", 0)])
+        enemy.current_hp = 49
+        enemy.stat_stages["spe"] = -6
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 1.0)
+
+    def test_rest_is_bad_when_toxic(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [move("rest", "psychic", "status", 0)])
+        enemy.status = "toxic"
+        enemy.current_hp = 40
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), -1.0)
+
+    def test_pain_split_needs_meaningful_heal(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [move("pain-split", "normal", "status", 0)])
+        enemy.current_hp = 90
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), -1.0)
+
     def test_protect_is_penalized_for_incapacitated_ai(self):
         player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
         enemy = make_mon("Enemy", ["normal"], [move("protect", "normal", "status", 0)])
