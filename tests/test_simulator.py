@@ -597,8 +597,19 @@ class TestBattleMechanics(unittest.TestCase):
             {"type": "move", "move_index": 0},
             random.Random(1),
         )
-        self.assertIsNone(result.enemy_mon.status)
-        self.assertTrue(any("woke up" in entry for entry in result.log))
+        # One remaining sleep turn is consumed by this turn; waking happens
+        # on the following turn.
+        self.assertEqual(result.enemy_mon.status, "sleep")
+        self.assertEqual(result.enemy_mon.status_turns, 0)
+
+        awake = step(
+            result,
+            {"type": "switch", "target_index": 1},
+            {"type": "move", "move_index": 0},
+            random.Random(1),
+        )
+        self.assertIsNone(awake.enemy_mon.status)
+        self.assertTrue(any("woke up" in entry for entry in awake.log))
 
     def test_sleep_enumeration_branches_wake_timing(self):
         state = fresh_state()
