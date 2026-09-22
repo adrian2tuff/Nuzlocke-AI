@@ -634,6 +634,185 @@ def _single_move_branches(
     return branches
 
 
+
+def _multi_hit_state_key(state: BattleState) -> tuple:
+    """Hash only battle state, not narration, for sequential RNG-state merging."""
+    def mon_key(mon: Pokemon) -> tuple:
+        return (
+            mon.species.name, mon.current_hp, mon.status, mon.status_turns,
+            frozenset(mon.volatile), tuple(sorted(mon.stat_stages.items())),
+            tuple(mv.pp for mv in mon.moves), mon.ability, mon.item,
+            mon.protect_streak,
+        )
+
+    field = state.field
+    return (
+        state.player_active, state.enemy_active,
+        tuple(mon_key(mon) for mon in state.player_team),
+        tuple(mon_key(mon) for mon in state.enemy_team),
+        field.weather, field.weather_turns, field.terrain, field.terrain_turns,
+        field.trick_room_turns,
+        tuple(
+            field.hazards[side][kind]
+            for side in ("player", "enemy")
+            for kind in ("stealth_rock", "spikes", "toxic_spikes")
+        ),
+    )
+
+
+def _enumerate_multi_hit_move(
+    state: BattleState,
+    side: str,
+    action: dict,
+    hit_count: int,
+    *,
+    damage_buckets: int | None,
+    include_descriptions: bool,
+) -> list[tuple[float, BattleState, str]]:
+    """Enumerate a multi-hit move one strike at a time.
+
+    Each strike gets its own crit roll, damage roll, and secondary-effect roll.
+    States are merged after every strike when they are identical, avoiding the
+    full Cartesian explosion that would result from enumerating complete
+    crit/roll/effect sequences up front.
+    """
+    working = state.clone()
+    log = [] if include_descriptions else _NullLog()
+    attacker = working.active_mon(side)
+    defender = working.active_mon(working.other_side(side))
+    move = attacker.moves[action["move_index"]]
+
+    move.pp = max(0, move.pp - 1)
+    attacker.protect_streak = 0
+
+    # These checks occur once for the whole move, before the individual hits.
+    if "protect" in defender.volatile and move.effect != "protect":
+        log.append(f"{defender.display_name()} protected itself from {move.name}!")
+        return [(1.0, working, "; ".join(log) if include_descriptions else "")]
+
+    if move.type == "ground" and defender.ability == "levitate":
+        log.append(f"{defender.display_name()} is immune to {move.name} because of Levitate!")
+        return [(1.0, working, "; ".join(log) if include_descriptions else "")]
+
+    states: list[tuple[float, BattleState, str]] = [
+        (1.0, working, "; ".join(log) if include_descriptions else "")
+    ]
+
+    for hit_number in range(hit_count):
+        next_states: dict[tuple, tuple[float, BattleState, str]] = {}
+
+        for base_probability, base_state, base_description in states:
+            if base_state.active_mon(side).is_fainted or base_state.active_mon(base_state.other_side(side)).is_fainted:
+                key = _multi_hit_state_key(base_state)
+                old = next_states.get(key)
+                if old is None:
+                    next_states[key] = (base_probability, base_state, base_description)
+                else:
+                    next_states[key] = (old[0] + base_probability, old[1], old[2])
+                continue
+
+            a = base_state.active_mon(side)
+            d = base_state.active_mon(base_state.other_side(side))
+            m = a.moves[action["move_index"]]
+
+            crit_branches = [
+                (1.0, False),
+            ]
+            crit_probability = _crit_chance(m)
+            if crit_probability > 0:
+                crit_branches = [
+                    (1.0 - crit_probability, False),
+                    (crit_probability, True),
+                ]
+
+            for p_crit, is_crit in crit_branches:
+                rolls = damage_rolls(a, d, m, base_state.field, is_crit=is_crit)
+                for p_roll, roll_index in _bucket_roll_indices(len(rolls), damage_buckets):
+                    effect_branches = [(1.0, False)]
+                    if m.effect and m.effect_chance > 0:
+                        effect_probability = m.effect_chance / 100
+                        effect_branches = [(1.0 - effect_probability, False), (effect_probability, True)]
+
+                    for p_effect, effect_triggers in effect_branches:
+                        effect_resolution_branches = [(1.0, None)]
+                        if effect_triggers and m.effect == "sleep":
+                            effect_resolution_branches = [(1 / 3, 1), (1 / 3, 2), (1 / 3, 3)]
+
+                        for p_resolution, sleep_turns in effect_resolution_branches:
+                            branch = base_state.clone()
+                            branch_log = base_description
+                            attacker_b = branch.active_mon(side)
+                            defender_b = branch.active_mon(branch.other_side(side))
+                            move_b = attacker_b.moves[action["move_index"]]
+                            dmg = rolls[roll_index]
+                            defender_b.current_hp = max(0, defender_b.current_hp - dmg)
+
+                            if branch_log:
+                                branch_log += "; "
+                            branch_log += (
+                                f"{attacker_b.display_name()} used {move_b.name}! "
+                                f"{'A critical hit! ' if is_crit else ''}"
+                                f"Hit {hit_number + 1}/{hit_count}: "
+                                f"{defender_b.display_name()} took {dmg} damage "
+                                f"({defender_b.current_hp}/{defender_b.max_hp} HP left)."
+                            )
+
+                            if move_b.makes_contact and defender_b.ability == "rough-skin" and dmg > 0:
+                                rough_damage = max(1, defender_b.max_hp // 8)
+                                attacker_b.current_hp = max(0, attacker_b.current_hp - rough_damage)
+                                branch_log += f" {attacker_b.display_name()} was hurt by Rough Skin! (-{rough_damage} HP)"
+                                if attacker_b.is_fainted:
+                                    branch_log += f" {attacker_b.display_name()} fainted!"
+                                    key = _multi_hit_state_key(branch)
+                                    probability = base_probability * p_crit * p_roll * p_effect * p_resolution
+                                    old = next_states.get(key)
+                                    next_states[key] = (
+                                        (old[0] if old else 0.0) + probability,
+                                        branch,
+                                        old[2] if old else branch_log,
+                                    )
+                                    continue
+
+                            if attacker_b.item == "life-orb" and dmg > 0:
+                                life_damage = max(1, attacker_b.max_hp // 10)
+                                attacker_b.current_hp = max(0, attacker_b.current_hp - life_damage)
+                                branch_log += f" {attacker_b.display_name()} lost HP from Life Orb! (-{life_damage} HP)"
+                                if attacker_b.is_fainted:
+                                    branch_log += f" {attacker_b.display_name()} fainted!"
+
+                            if not defender_b.is_fainted and effect_triggers:
+                                if move_b.effect == "sleep" and sleep_turns is not None:
+                                    if defender_b.status is None:
+                                        defender_b.status = "sleep"
+                                        defender_b.status_turns = sleep_turns
+                                        branch_log += f" {defender_b.display_name()} fell asleep for {sleep_turns} turn(s)!"
+                                else:
+                                    before_log_len = len(branch_log)
+                                    effect_log = []
+                                    _apply_move_effect(
+                                        move_b, attacker_b, defender_b, effect_log,
+                                        field=branch.field, attacker_side=side,
+                                        damage_dealt=dmg, rng=_ENUM_RNG,
+                                    )
+                                    if effect_log:
+                                        branch_log += " " + " ".join(effect_log)
+
+                            if defender_b.is_fainted:
+                                branch_log += f" {defender_b.display_name()} fainted!"
+
+                            probability = base_probability * p_crit * p_roll * p_effect * p_resolution
+                            key = _multi_hit_state_key(branch)
+                            old = next_states.get(key)
+                            if old is None:
+                                next_states[key] = (probability, branch, branch_log)
+                            else:
+                                next_states[key] = (old[0] + probability, old[1], old[2])
+
+        states = list(next_states.values())
+
+    return states
+
+
 def enumerate_turn_outcomes(
     state: BattleState,
     player_action: dict,
@@ -712,6 +891,13 @@ def enumerate_turn_outcomes(
                 (0.80, True, False, None, False, False, None, None, "frozen"),
             ]
 
+        if (move.category != "status" and move.power > 0 and (move.hits_min != 1 or move.hits_max != 1)):
+            # Multi-hit moves are enumerated strike-by-strike below. Keeping
+            # only the hit-count branch here prevents a Cartesian explosion
+            # across independent crit/damage/effect rolls.
+            return [(p, True, False, None, False, False, None, hit_count, None)
+                    for p, hit_count in hit_counts]
+
         move_branches = _single_move_branches(attacker, defender, move, acting_state.field, damage_buckets=damage_buckets)
 
         # Fan each (hit/crit/roll) branch out over the secondary-effect chance.
@@ -756,6 +942,66 @@ def enumerate_turn_outcomes(
                 attacker = s1.active_mon(first)
                 defender = s1.active_mon(s1.other_side(first))
                 move = attacker.moves[a1["move_index"]]
+                if hits1 is not None and (move.hits_min != 1 or move.hits_max != 1) and move.category != "status":
+                    multi_states = _enumerate_multi_hit_move(
+                        s1, first, a1, hits1,
+                        damage_buckets=damage_buckets,
+                        include_descriptions=include_descriptions,
+                    )
+                    # Defer this branch to the normal second-mover loop below.
+                    for multi_p, multi_state, multi_desc in multi_states:
+                        first_wiped = multi_state.team_wiped(multi_state.other_side(first))
+                        if first_wiped:
+                            _apply_status_damage(multi_state.player_mon, log1 if include_descriptions else _NullLog())
+                            _apply_status_damage(multi_state.enemy_mon, log1 if include_descriptions else _NullLog())
+                            multi_state.turn += 1
+                            outs.append(Outcome(order_weight * p1 * multi_p, multi_state, multi_desc))
+                            continue
+
+                        for p2, hit2, crit2, roll2, effect2, para2, protect2, hits2, status2 in branches_for(multi_state, second):
+                            s2 = multi_state.clone()
+                            log2 = list(log1) if include_descriptions else _NullLog()
+                            a2 = actions[second]
+                            if s2.active_mon(second).is_fainted:
+                                pass
+                            elif a2["type"] == "switch":
+                                _apply_switch(s2, second, a2["target_index"], log2)
+                            else:
+                                attacker2 = s2.active_mon(second)
+                                defender2 = s2.active_mon(s2.other_side(second))
+                                move2 = attacker2.moves[a2["move_index"]]
+                                if hits2 is not None and (move2.hits_min != 1 or move2.hits_max != 1) and move2.category != "status":
+                                    multi2 = _enumerate_multi_hit_move(
+                                        s2, second, a2, hits2,
+                                        damage_buckets=damage_buckets,
+                                        include_descriptions=include_descriptions,
+                                    )
+                                    for p_multi2, s_multi2, desc_multi2 in multi2:
+                                        final = s_multi2
+                                        final_log = desc_multi2
+                                        if not final.is_terminal():
+                                            endlog = []
+                                            _apply_status_damage(final.player_mon, endlog)
+                                            _apply_status_damage(final.enemy_mon, endlog)
+                                            _apply_end_of_turn_field(final, endlog)
+                                            final_log = (final_log + "; " + "; ".join(endlog)) if final_log and endlog else final_log + "; ".join(endlog)
+                                        final.turn += 1
+                                        outs.append(Outcome(order_weight * p1 * multi_p * p2 * p_multi2, final, final_log))
+                                else:
+                                    resolve_move(
+                                        attacker2, defender2, move2, s2.field,
+                                        rng=_ENUM_RNG, log=log2,
+                                        force_hit=hit2, force_crit=crit2, force_roll_index=roll2,
+                                        force_effect=effect2, force_full_para=para2, force_protect_success=protect2, force_hit_count=hits2, force_status_resolution=status2, attacker_side=second,
+                                    )
+                                    if not s2.is_terminal():
+                                        _apply_status_damage(s2.player_mon, log2)
+                                        _apply_status_damage(s2.enemy_mon, log2)
+                                        _apply_end_of_turn_field(s2, log2)
+                                    s2.turn += 1
+                                    outs.append(Outcome(order_weight * p1 * multi_p * p2, s2, "; ".join(log2) if include_descriptions else ""))
+                    continue
+
                 resolve_move(
                     attacker, defender, move, s1.field,
                     rng=_ENUM_RNG, log=log1,
