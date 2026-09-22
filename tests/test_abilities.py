@@ -59,6 +59,7 @@ class TestAbilities(unittest.TestCase):
         state = fresh_state()
         state.player_active = 1
         state.player_mon.ability = "solar-power"
+        state.player_mon.item = None
         state.field.weather = "sun"
         before = state.player_mon.current_hp
 
