@@ -556,8 +556,9 @@ class TestEnemyPolicy(unittest.TestCase):
 
     def test_counter_requires_physical_last_damage(self):
         player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
-        player.volatile.add("last-damage")
         enemy = make_mon("Enemy", ["normal"], [move("counter", "fighting", "physical", 0)])
+        enemy.volatile.add("last-damage")
+        enemy.last_damage_category = "special"
         state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
         self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), -20.0)
 
