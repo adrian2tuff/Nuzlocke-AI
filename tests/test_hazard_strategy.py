@@ -113,7 +113,7 @@ class TestHazardStrategy(unittest.TestCase):
 
     def test_stealth_rock_has_no_value_against_all_flying_switches(self):
         setter = make_mon("Setter", ["normal"], [])
-        enemy = make_mon("Enemy", ["normal"], [])
+        enemy = make_mon("Enemy", ["flying"], [])
         flyer = make_mon("Flyer", ["flying"], [])
 
         state = BattleState(
