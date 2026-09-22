@@ -23,6 +23,7 @@ HP_WEIGHT = 0.24
 REPLACEABILITY_WEIGHT = 0.18
 STATUS_WEIGHT = 0.08
 ACTIVE_MATCHUP_WEIGHT = 0.16
+HAZARD_WEIGHT = 0.10
 
 STATUS_VALUES = {
     "burn": 0.50,
@@ -42,6 +43,7 @@ class EvaluationBreakdown:
     replaceability: float
     status: float
     active_matchup: float
+    hazards: float
     total: float
 
 
@@ -95,6 +97,42 @@ def _status_score(state: BattleState, side: str) -> float:
     return 1.0 - penalty / len(team)
 
 
+def _hazard_entry_fraction(state: BattleState, side: str, mon) -> float:
+    """Expected one-time entry cost if this Pokemon switches in."""
+    hazards = state.field.hazards[side]
+    fraction = 0.0
+
+    if hazards["stealth_rock"]:
+        fraction += 0.125 * type_effectiveness("rock", mon.species.types)
+
+    grounded = "flying" not in mon.species.types and mon.ability != "levitate"
+    if grounded:
+        fraction += {1: 1 / 8, 2: 1 / 6, 3: 1 / 4}.get(hazards["spikes"], 0.0)
+        # Toxic Spikes are modeled as a status risk rather than direct HP
+        # damage, so keep this intentionally smaller than the HP hazards.
+        if hazards["toxic_spikes"] and mon.status is None:
+            fraction += 0.08
+
+    return min(1.0, fraction)
+
+
+def _hazard_burden_score(state: BattleState, side: str) -> float:
+    """Return the average future entry burden on the side's living team."""
+    team = state.side_team(side)
+    bench = [
+        mon for i, mon in enumerate(team)
+        if i != state.active_index(side) and not mon.is_fainted
+    ]
+    if not bench:
+        return 0.0
+    return sum(_hazard_entry_fraction(state, side, mon) for mon in bench) / len(bench)
+
+
+def _hazard_score(state: BattleState, side: str) -> float:
+    """Higher is better: fewer hazards on our side is better."""
+    return 1.0 - _hazard_burden_score(state, side)
+
+
 def _active_matchup_score(state: BattleState, side: str) -> float:
     """Position-only typing/coverage/speed signal; damage stays in simulator."""
     other = state.other_side(side)
@@ -144,6 +182,10 @@ def evaluate_breakdown(state: BattleState, watch: str = "player") -> EvaluationB
         _status_score(state, other),
     )
     active_matchup = _active_matchup_score(state, watch)
+    hazards = _ratio_advantage(
+        _hazard_score(state, watch),
+        _hazard_score(state, other),
+    )
 
     total = (
         ALIVE_WEIGHT * alive
@@ -151,6 +193,7 @@ def evaluate_breakdown(state: BattleState, watch: str = "player") -> EvaluationB
         + REPLACEABILITY_WEIGHT * replaceability
         + STATUS_WEIGHT * status
         + ACTIVE_MATCHUP_WEIGHT * active_matchup
+        + HAZARD_WEIGHT * hazards
     )
 
     return EvaluationBreakdown(
@@ -159,6 +202,7 @@ def evaluate_breakdown(state: BattleState, watch: str = "player") -> EvaluationB
         replaceability=replaceability,
         status=status,
         active_matchup=active_matchup,
+        hazards=hazards,
         total=max(-1.0, min(1.0, total)),
     )
 
