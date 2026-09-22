@@ -609,7 +609,11 @@ def score_enemy_move(state, action, *, side="enemy", rng=None):
     if self_destruct_score is not None:
         return self_destruct_score
 
-    protection_score = _score_protection_move(state, mon, opponent, move, rng)\n    if protection_score is not None:\n        return protection_score\n\n    if move.category == "status" or move.power <= 0:
+    protection_score = _score_protection_move(state, mon, opponent, move, rng)
+    if protection_score is not None:
+        return protection_score
+
+    if move.category == "status" or move.power <= 0:
         field_score = _score_field_control_move(state, mon, opponent, move, side, rng)
         if field_score is not None:
             return field_score
