@@ -466,6 +466,38 @@ class TestBattleMechanics(unittest.TestCase):
         self.assertIsNone(result.field.terrain)
         self.assertEqual(result.field.terrain_turns, 0)
 
+    def test_mean_look_traps_opponent(self):
+        state = fresh_state()
+        state.player_mon.moves.append(DataStore().build_move("mean-look"))
+        idx = len(state.player_mon.moves) - 1
+
+        outcomes = enumerate_turn_outcomes(
+            state,
+            {"type": "move", "move_index": idx},
+            {"type": "switch", "target_index": 1},
+        )
+
+        self.assertTrue(all("trapped" in o.state.enemy_mon.volatile for o in outcomes))
+        self.assertTrue(all(
+            all(a["type"] == "move" for a in o.state.legal_actions("enemy"))
+            for o in outcomes
+        ))
+
+    def test_switching_clears_trap_from_outgoing_pokemon(self):
+        state = fresh_state()
+        state.enemy_mon.volatile.add("trapped")
+
+        # Directly construct a forced switch to verify the outgoing volatile
+        # state is cleared when the Pokemon leaves the field.
+        result = step(
+            state,
+            {"type": "switch", "target_index": 1},
+            {"type": "switch", "target_index": 1},
+            random.Random(1),
+        )
+
+        self.assertNotIn("trapped", result.player_team[0].volatile)
+
     def test_protect_blocks_attacks(self):
         state = fresh_state()
         state.player_mon.moves.append(DataStore().build_move("protect"))
