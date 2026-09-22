@@ -167,6 +167,68 @@ def _score_self_destruct_move(state, attacker, defender, move, side, rng):
         return 7.0 if _random_chance(rng, 0.50) else 0.0
     return 7.0 if _random_chance(rng, 0.05) else 0.0
 
+
+RECOVERY_MOVES = {
+    "recover", "roost", "soft-boiled", "slack-off", "shore-up",
+    "moonlight", "morning-sun", "synthesis", "rest", "strength-sap",
+    "pain-split",
+}
+
+def _recovery_amount(attacker, move, state):
+    name = _move_name(move)
+    if name == "rest":
+        return attacker.max_hp
+    if name == "pain-split":
+        return max(0, (defender.current_hp if False else 0))
+    # Standard recovery is approximately 50%; weather-dependent moves are
+    # handled at their normal 50% baseline here and adjusted below.
+    return max(1, attacker.max_hp // 2)
+
+def _score_recovery_move(state, attacker, defender, move, rng):
+    name = _move_name(move)
+    if name not in RECOVERY_MOVES:
+        return None
+
+    # Pain Split is not conventional recovery: it is only worthwhile when
+    # the AI can gain a meaningful amount of HP.
+    if name == "pain-split":
+        gain = (defender.current_hp - attacker.current_hp) // 2
+        return 1.0 if gain > attacker.max_hp * 0.30 else -1.0
+
+    if name == "rest":
+        if attacker.status == "toxic":
+            return -1.0
+        gain = attacker.max_hp - attacker.current_hp
+        if gain <= 0:
+            return -1.0
+        heal = attacker.max_hp
+    else:
+        gain = attacker.max_hp - attacker.current_hp
+        if gain <= 0:
+            return -1.0
+        heal = max(1, attacker.max_hp // 2)
+        if name in {"moonlight", "morning-sun", "synthesis"} and state.field.weather in {"sun", "harsh-sun"}:
+            heal = max(heal, (attacker.max_hp * 2) // 3)
+
+    after_hp = min(attacker.max_hp, attacker.current_hp + heal)
+    player_damage = _max_damage(defender, attacker, state.field)
+
+    if attacker.effective_stat("spe") >= defender.effective_stat("spe"):
+        if player_damage >= attacker.current_hp and player_damage < after_hp:
+            return 1.0
+        if player_damage < attacker.current_hp:
+            if attacker.current_hp < attacker.max_hp * 0.40:
+                return 1.0
+            if attacker.current_hp < attacker.max_hp * 0.66:
+                return 1.0 if _random_chance(rng, 0.50) else 0.0
+        return -1.0
+
+    if attacker.current_hp < attacker.max_hp * 0.70:
+        return 1.0 if _random_chance(rng, 0.75) else 0.0
+    if attacker.current_hp < attacker.max_hp * 0.50:
+        return 1.0
+    return -1.0
+
 PROTECTION_MOVES = {"protect", "detect", "baneful-bunker", "kings-shield", "silk-trap", "obstruct", "spiky-shield", "burning-bulwark", "endure"}
 
 def _end_turn_damage_estimate(mon):
@@ -612,6 +674,10 @@ def score_enemy_move(state, action, *, side="enemy", rng=None):
     protection_score = _score_protection_move(state, mon, opponent, move, rng)
     if protection_score is not None:
         return protection_score
+
+    recovery_score = _score_recovery_move(state, mon, opponent, move, rng)
+    if recovery_score is not None:
+        return recovery_score
 
     if move.category == "status" or move.power <= 0:
         field_score = _score_field_control_move(state, mon, opponent, move, side, rng)
