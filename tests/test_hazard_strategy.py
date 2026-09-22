@@ -67,6 +67,65 @@ class TestHazardStrategy(unittest.TestCase):
         self.assertEqual(field.hazards["player"]["spikes"], 0)
         self.assertEqual(field.hazards["player"]["toxic_spikes"], 0)
 
+    def test_hazard_stacking_is_more_valuable_against_grounded_team(self):
+        setter = make_mon("Setter", ["rock"], [])
+        grounded = make_mon("Grounded", ["normal"], [])
+        flying = make_mon("Flying", ["flying"], [])
+        enemy = make_mon("Enemy", ["normal"], [])
+
+        grounded_state = BattleState(
+            player_team=[setter],
+            enemy_team=[enemy, grounded],
+        )
+        flying_state = BattleState(
+            player_team=[setter],
+            enemy_team=[enemy, flying],
+        )
+        grounded_state.field.hazards["enemy"]["spikes"] = 3
+        flying_state.field.hazards["enemy"]["spikes"] = 3
+
+        grounded_value = evaluate_breakdown(grounded_state).hazards
+        flying_value = evaluate_breakdown(flying_state).hazards
+
+        self.assertGreater(grounded_value, flying_value)
+
+    def test_stealth_rock_is_more_valuable_against_rock_weak_team(self):
+        setter = make_mon("Setter", ["normal"], [])
+        weak = make_mon("Weak", ["fire"], [])
+        neutral = make_mon("Neutral", ["water"], [])
+        enemy = make_mon("Enemy", ["normal"], [])
+
+        weak_state = BattleState(
+            player_team=[setter],
+            enemy_team=[enemy, weak],
+        )
+        neutral_state = BattleState(
+            player_team=[setter],
+            enemy_team=[enemy, neutral],
+        )
+        weak_state.field.hazards["enemy"]["stealth_rock"] = True
+        neutral_state.field.hazards["enemy"]["stealth_rock"] = True
+
+        self.assertGreater(
+            evaluate_breakdown(weak_state).hazards,
+            evaluate_breakdown(neutral_state).hazards,
+        )
+
+    def test_stealth_rock_has_no_value_against_all_flying_switches(self):
+        setter = make_mon("Setter", ["normal"], [])
+        enemy = make_mon("Enemy", ["normal"], [])
+        flyer = make_mon("Flyer", ["flying"], [])
+
+        state = BattleState(
+            player_team=[setter],
+            enemy_team=[enemy, flyer],
+        )
+        baseline = evaluate_breakdown(state).hazards
+        state.field.hazards["enemy"]["stealth_rock"] = True
+        pressured = evaluate_breakdown(state).hazards
+
+        self.assertEqual(pressured, baseline)
+
     def test_evaluator_values_clearing_future_switching_burden(self):
         rapid_spin = Move(
             name="rapid-spin",
