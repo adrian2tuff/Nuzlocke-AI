@@ -254,6 +254,7 @@ def _apply_move_effect(
     data = move.effect_data
     if eff is None:
         return
+    target = attacker if data.get("target") == "self" else defender
     if eff == "recoil":
         fraction = data.get("fraction", 0)
         recoil = max(1, int(damage_dealt * fraction)) if damage_dealt > 0 else 0
@@ -322,7 +323,6 @@ def _apply_move_effect(
             field.hazards[attacker_side]["toxic_spikes"] = min(2, current + 1)
             log.append(f"Toxic Spikes were scattered around the opposing team! ({field.hazards[attacker_side]['toxic_spikes']} layer(s))")
         return
-    target = attacker if data.get("target") == "self" else defender
     if eff == "stat_change":
         _apply_stat_change(target, data["stat"], data["stages"], log)
     elif eff in ("burn", "paralysis", "poison", "toxic"):
