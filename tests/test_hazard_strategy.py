@@ -111,14 +111,15 @@ class TestHazardStrategy(unittest.TestCase):
             evaluate_breakdown(neutral_state).hazards,
         )
 
-    def test_stealth_rock_has_no_value_against_all_flying_switches(self):
+    def test_stealth_rock_has_no_value_when_opponent_has_no_living_switch_ins(self):
         setter = make_mon("Setter", ["normal"], [])
         enemy = make_mon("Enemy", ["flying"], [])
-        flyer = make_mon("Flyer", ["flying"], [])
+        fainted_switch = make_mon("Fainted", ["fire"], [])
+        fainted_switch.hp = 0
 
         state = BattleState(
             player_team=[setter],
-            enemy_team=[enemy, flyer],
+            enemy_team=[enemy, fainted_switch],
         )
         baseline = evaluate_breakdown(state).hazards
         state.field.hazards["enemy"]["stealth_rock"] = True
