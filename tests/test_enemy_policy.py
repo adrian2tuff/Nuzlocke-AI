@@ -806,3 +806,20 @@ if __name__ == "__main__":
         enemy = make_mon("normal-enemy", ["normal"], [move("conversion", "normal", "status", 0), move("flamethrower", "fire", "special", 90)])
         state = BattleState([player], [enemy])
         self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 2.0)
+
+
+    def test_simulator_tracks_last_status_and_ko(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 500)])
+        enemy = make_mon("Enemy", ["normal"], [move("disable", "normal", "status", 0)])
+        state = BattleState([player], [enemy])
+        resolve_move(state, "player", 0, "enemy", 0)
+        self.assertIn("last-move:tackle", player.volatile)
+        self.assertIn("last-move-ko", player.volatile)
+        self.assertNotIn("last-status", player.volatile)
+
+    def test_simulator_tracks_status_move_for_encore(self):
+        player = make_mon("Player", ["normal"], [move("growl", "normal", "status", 0)])
+        enemy = make_mon("Enemy", ["normal"], [move("encore", "normal", "status", 0)])
+        state = BattleState([player], [enemy])
+        resolve_move(state, "player", 0, "enemy", 0)
+        self.assertIn("last-status", player.volatile)
