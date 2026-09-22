@@ -26,8 +26,24 @@ def make_mon(name, types, moves):
 
 class TestHazardStrategy(unittest.TestCase):
     def test_trapping_favorable_matchup_is_valuable(self):
-        player = make_mon("Player", ["water"], [])
-        enemy = make_mon("Enemy", ["fire"], [])
+        water_move = Move(
+            name="water-gun",
+            type="water",
+            category="special",
+            power=40,
+            accuracy=100,
+            pp=25,
+        )
+        fire_move = Move(
+            name="ember",
+            type="fire",
+            category="special",
+            power=40,
+            accuracy=100,
+            pp=25,
+        )
+        player = make_mon("Player", ["water"], [water_move])
+        enemy = make_mon("Enemy", ["fire"], [fire_move])
         bench = make_mon("Bench", ["normal"], [])
 
         state = BattleState(
