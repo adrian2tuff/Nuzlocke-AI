@@ -128,9 +128,17 @@ def _hazard_burden_score(state: BattleState, side: str) -> float:
     return sum(_hazard_entry_fraction(state, side, mon) for mon in bench) / len(bench)
 
 
+def _hazard_pressure_score(state: BattleState, side: str) -> float:
+    """Value hazards currently sitting on the opponent's side."""
+    opponent = state.other_side(side)
+    return _hazard_burden_score(state, opponent)
+
+
 def _hazard_score(state: BattleState, side: str) -> float:
-    """Higher is better: fewer hazards on our side is better."""
-    return 1.0 - _hazard_burden_score(state, side)
+    """Combine defensive cleanliness and offensive hazard pressure."""
+    defensive = 1.0 - _hazard_burden_score(state, side)
+    offensive = _hazard_pressure_score(state, side)
+    return (defensive + offensive) / 2.0
 
 
 def _active_matchup_score(state: BattleState, side: str) -> float:
