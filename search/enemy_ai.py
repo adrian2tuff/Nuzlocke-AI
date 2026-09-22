@@ -335,6 +335,50 @@ def _setup_category(move):
     if name in DEFENSIVE_SETUP_MOVES: return "defensive"
     return None
 
+HAZARD_MOVES = {
+    "stealth_rock": {"stealth-rock", "stone-axe"},
+    "spikes": {"spikes", "ceaseless-edge"},
+    "toxic_spikes": {"toxic-spikes"},
+    "sticky_web": {"sticky-web"},
+}
+
+def _is_last_mon(state, side):
+    return sum(not mon.is_fainted for mon in state.side_team(side)) == 1
+
+def _score_hazard_move(state, attacker, defender, move, side, rng):
+    name = _move_name(move)
+    hazard = next((kind for kind, names in HAZARD_MOVES.items() if name in names), None)
+    if hazard is None:
+        return None
+
+    target_side = state.other_side(side)
+    hazards = state.field.hazards[target_side]
+    if _is_last_mon(state, target_side):
+        return -10.0
+
+    if hazard == "stealth_rock" and hazards.get("stealth_rock", False):
+        return -20.0
+    if hazard == "spikes" and hazards.get("spikes", 0) >= 3:
+        return -20.0
+    if hazard == "toxic_spikes" and hazards.get("toxic_spikes", 0) >= 2:
+        return -20.0
+    if hazard == "sticky_web" and hazards.get("sticky_web", False):
+        return -20.0
+
+    score = 0.0
+    if state.turn == 0:
+        score += 2.0 if _random_chance(rng, 0.98) else 0.0
+        if hazard == "sticky_web":
+            score += 1.0
+    alive = sum(not mon.is_fainted for mon in state.side_team(side))
+    total = len(state.side_team(side))
+    if total and _random_chance(rng, 0.75 * alive / total):
+        score += 1.0
+
+    if hazard == "toxic_spikes" and hazards.get("toxic_spikes", 0) >= 1:
+        score -= 1.0 if _random_chance(rng, 0.98) else 0.0
+    return score
+
 def _score_stat_lowering_move(state, attacker, defender, move, rng):
     """Null scoring for speed, stat, and accuracy-lowering moves."""
     stat = move.effect_data.get("stat") if move.effect == "stat_change" else None
@@ -467,6 +511,9 @@ def score_enemy_move(state, action, *, side="enemy", rng=None):
     move = mon.moves[action["move_index"]]
 
     if move.category == "status" or move.power <= 0:
+        hazard_score = _score_hazard_move(state, mon, opponent, move, side, rng)
+        if hazard_score is not None:
+            return hazard_score
         stat_score = _score_stat_lowering_move(state, mon, opponent, move, rng)
         if stat_score is not None:
             return stat_score
