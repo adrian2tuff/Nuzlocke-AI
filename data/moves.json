@@ -51,6 +51,18 @@
       "target": "field"
     }
   },
+  "mean-look": {
+    "type": "normal",
+    "category": "status",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 5,
+    "effect": "trap",
+    "effect_chance": 100,
+    "effect_data": {
+      "target": "other"
+    }
+  },
   "double-edge": {
     "type": "normal",
     "category": "physical",
