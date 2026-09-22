@@ -148,7 +148,7 @@ def _score_status_move(state, attacker, defender, move, rng=None):
     if move.effect == "sleep" or name in {"dark-void", "hypnosis", "sing", "sleep-powder", "spore", "yawn"}:
         if not target_can_status:
             return -20.0
-        score = 1.0
+        score = 7.0
         if _has_move_named(attacker, {"dream-eater", "nightmare", "snore", "sleep-talk"}):
             score += 1.0
         if name == "dark-void" and _random_chance(rng, 0.80):
@@ -158,7 +158,7 @@ def _score_status_move(state, attacker, defender, move, rng=None):
     if move.effect in {"poison", "toxic"} or name in {"poison-powder", "toxic", "poison-gas"}:
         if not target_can_status or defender.current_hp <= defender.max_hp * 0.20:
             return -20.0
-        score = 0.0
+        score = 6.0
         if not any(m.category != "status" and m.power > 0 for m in defender.moves):
             score += 1.0
         if _has_move_named(defender, {"protect"}):
@@ -170,7 +170,7 @@ def _score_status_move(state, attacker, defender, move, rng=None):
     if move.effect == "paralysis" or name in {"thunder-wave", "glare", "nuzzle", "stun-spore"}:
         if not target_can_status:
             return -20.0
-        score = 2.0 if attacker.effective_stat("spe") < defender.effective_stat("spe") else 1.0
+        score = 8.0 if attacker.effective_stat("spe") < defender.effective_stat("spe") else 7.0
         if _has_move_named(attacker, {"hex", "infernal-parade"}) or _has_move_named(attacker, {"fake-out", "bite", "air-slash", "iron-head", "rock-slide"}):
             score += 2.0
         if defender.status in {"confusion", "infatuation"} or "confusion" in defender.volatile:
@@ -180,7 +180,7 @@ def _score_status_move(state, attacker, defender, move, rng=None):
     if move.effect in {"burn", "frostbite"} or name in {"will-o-wisp", "scald", "flame-wheel", "ice-burn", "freezing-glare"}:
         if not target_can_status:
             return -20.0
-        score = 1.0
+        score = 6.0
         physical = _player_has_attack_category(defender, "physical")
         special = _player_has_attack_category(defender, "special")
         if move.effect == "frostbite":
@@ -195,7 +195,7 @@ def _score_status_move(state, attacker, defender, move, rng=None):
     if move.effect == "confusion" or name in {"confuse-ray", "supersonic", "teeter-dance", "swagger", "flatter"}:
         if "confusion" in defender.volatile:
             return -20.0
-        score = 1.0
+        score = 7.0
         if defender.status in {"paralysis", "infatuation"}:
             score += 1.0
         if attacker.ability.lower().replace(" ", "-") == "serene-grace" and _has_move_named(attacker, {"air-slash", "iron-head", "rock-slide"}):
