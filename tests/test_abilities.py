@@ -44,7 +44,7 @@ class TestAbilities(unittest.TestCase):
         state.enemy_active = 1
         attacker = state.player_mon
         defender = state.enemy_mon
-        move = DataStore().build_move("hydro-pump")
+        move = DataStore().build_move("thunderbolt")
 
         attacker.ability = None
         neutral = max(damage_rolls(attacker, defender, move, state.field))
