@@ -136,6 +136,37 @@ def choose_switch_in(state, *, side="enemy", rng=None):
             best, best_score = index, score
     return best
 
+def _score_self_destruct_move(state, attacker, defender, move, side, rng):
+    name = _move_name(move)
+    if name not in {"explosion", "self-destruct", "misty-explosion", "memento", "final-gambit"}:
+        return None
+
+    if name == "memento":
+        if (defender.stat_stages.get("atk", 0) <= -6
+                and defender.stat_stages.get("spa", 0) <= -6):
+            return -20.0
+
+    ai_last = _is_last_mon(state, side)
+    player_last = _is_last_mon(state, state.other_side(side))
+    if ai_last:
+        return -10.0 if not player_last else -1.0
+
+    if name == "final-gambit":
+        faster = attacker.effective_stat("spe") >= defender.effective_stat("spe")
+        if faster and attacker.current_hp >= defender.current_hp:
+            return 8.0
+        if faster and _player_kill_hits(defender, attacker, state.field) == 1:
+            return 7.0
+        return 6.0
+
+    if attacker.current_hp < attacker.max_hp * 0.10:
+        return 10.0
+    if attacker.current_hp < attacker.max_hp * 0.33:
+        return 8.0 if _random_chance(rng, 0.70) else 0.0
+    if attacker.current_hp < attacker.max_hp * 0.66:
+        return 7.0 if _random_chance(rng, 0.50) else 0.0
+    return 7.0 if _random_chance(rng, 0.05) else 0.0
+
 def _score_status_move(state, attacker, defender, move, rng=None):
     """Null scoring for sleep, poison, paralysis, burn/frostbite, and confusion."""
     name = _move_name(move)
@@ -535,6 +566,10 @@ def score_enemy_move(state, action, *, side="enemy", rng=None):
     mon = state.active_mon(side)
     opponent = state.active_mon(state.other_side(side))
     move = mon.moves[action["move_index"]]
+
+    self_destruct_score = _score_self_destruct_move(state, mon, opponent, move, side, rng)
+    if self_destruct_score is not None:
+        return self_destruct_score
 
     if move.category == "status" or move.power <= 0:
         field_score = _score_field_control_move(state, mon, opponent, move, side, rng)
