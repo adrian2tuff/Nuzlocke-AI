@@ -294,6 +294,61 @@ class TestEnemyPolicy(unittest.TestCase):
         self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}, rng=random.Random(1)), 2.0)
 
 
+    def test_protect_is_penalized_for_incapacitated_ai(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [move("protect", "normal", "status", 0)])
+        enemy.status = "sleep"
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), -20.0)
+
+    def test_protect_is_penalized_when_about_to_faint_to_burn(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [move("protect", "normal", "status", 0)])
+        enemy.status = "burn"
+        enemy.current_hp = 1
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), -10.0)
+
+    def test_protect_second_consecutive_use_is_penalized(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [move("protect", "normal", "status", 0)])
+        enemy.protect_streak = 2
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), -10.0)
+
+    def test_protect_previous_use_can_be_penalized(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [move("protect", "normal", "status", 0)])
+        enemy.protect_streak = 1
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}, rng=random.Random(1)), -10.0)
+
+    def test_protect_has_neutral_baseline(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [move("protect", "normal", "status", 0)])
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 0.0)
+
+    def test_endure_rewards_pinch_or_endure_combo(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 500)])
+        enemy = make_mon("Enemy", ["normal"], [move("endure", "normal", "status", 0), move("flail", "normal", "physical", 1)])
+        enemy.item = "salac-berry"
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 2.0)
+
+    def test_endure_speed_boost_baton_pass_gets_two(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 500)])
+        enemy = make_mon("Enemy", ["normal"], [move("endure", "normal", "status", 0), move("baton-pass", "normal", "status", 0)])
+        enemy.ability = "speed-boost"
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 2.0)
+
+    def test_endure_can_be_neutral_when_no_reason_to_use(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [move("endure", "normal", "status", 0)])
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}, rng=random.Random(1)), 0.0)
+
     def test_explosion_prefers_low_hp(self):
         player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
         enemy = make_mon("Enemy", ["normal"], [move("explosion", "normal", "physical", 250)])
