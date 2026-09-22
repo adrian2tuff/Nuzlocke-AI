@@ -472,7 +472,7 @@ class TestEnemyPolicy(unittest.TestCase):
 
     def test_ohko_move_scores_higher_against_three_hit_target(self):
         player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 20)])
-        enemy = make_mon("Enemy", ["normal"], [move("horn-drill", "normal", "physical", 0)])
+        enemy = make_mon("Enemy", ["normal"], [move("horn-drill", "normal", "physical", 0), move("tackle", "normal", "physical", 100)])
         state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
         self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 6.0)
 
