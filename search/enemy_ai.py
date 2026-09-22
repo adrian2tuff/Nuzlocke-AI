@@ -198,7 +198,7 @@ def _score_recovery_move(state, attacker, defender, move, rng):
 
     after_hp = min(attacker.max_hp, attacker.current_hp + heal)
     player_can_ko_now = _player_kill_hits(defender, attacker, state.field) == 1
-    player_can_ko_after = _max_damage(defender, attacker, state.field) >= after_hp
+    player_can_ko_after = _best_damage(defender, attacker, state.field) >= after_hp
 
     if attacker.effective_stat("spe") >= defender.effective_stat("spe"):
         if player_can_ko_now and not player_can_ko_after:
