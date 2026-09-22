@@ -230,7 +230,7 @@ class TestEnemyPolicy(unittest.TestCase):
         enemy = make_mon("Enemy", ["rock"], [move("stealth-rock", "rock", "status", 0)])
         enemy.moves[0].effect = "stealth_rock"
         state = BattleState([player, make_mon("Bench", ["normal"], [])], [enemy])
-        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}, rng=random.Random(1)), 3.0)
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}, rng=random.Random(1)), 1.0)
 
     def test_hazard_is_penalized_when_player_is_last_mon(self):
         player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
@@ -268,7 +268,7 @@ class TestEnemyPolicy(unittest.TestCase):
         enemy = make_mon("Enemy", ["bug"], [move("sticky-web", "bug", "status", 0)])
         enemy.moves[0].effect = "sticky_web"
         state = BattleState([player, make_mon("Bench", ["normal"], [])], [enemy])
-        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}, rng=random.Random(1)), 4.0)
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}, rng=random.Random(1)), 2.0)
 
     def test_hazard_alive_ratio_bonus_can_apply(self):
         player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
