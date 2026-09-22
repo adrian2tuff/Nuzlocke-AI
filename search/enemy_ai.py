@@ -455,11 +455,11 @@ def _score_utility_edge_move(state, attacker, defender, move, rng):
         return 1.0 if _random_chance(rng, 0.50) and _player_has_status_move(defender) else -1.0
 
     if name == "encore":
+        last_name = _last_move_name(defender)
         encouraged = (
             "encore-target" in defender.volatile
             or "last-status" in defender.volatile
-            or "last-fake-out" in defender.volatile
-            or "last-first-impression" in defender.volatile
+            or last_name in {"fake-out", "first-impression"}
         )
         if attacker.effective_stat("spe") >= defender.effective_stat("spe") and encouraged:
             return 1.0
