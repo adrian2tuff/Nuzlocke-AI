@@ -314,6 +314,16 @@ def _apply_move_effect(
             defender.volatile.add("flinch")
             log.append(f"{defender.display_name()} flinched!")
         return
+    if eff == "tailwind":
+        if field is not None and attacker_side is not None:
+            field.tailwind_turns[attacker_side] = data.get("turns", 4)
+            log.append(f"Tailwind blew up behind {attacker.display_name()}'s team!")
+        return
+    if eff == "trick_room":
+        if field is not None:
+            field.trick_room_turns = data.get("turns", 5)
+            log.append("The battlefield twisted the dimensions!")
+        return
     if eff == "weather":
         if field is not None:
             weather = data["weather"]
@@ -414,6 +424,12 @@ def _order_or_tie(state: BattleState, player_action: dict, enemy_action: dict) -
 
     p_spe = state.player_mon.effective_stat("spe")
     e_spe = state.enemy_mon.effective_stat("spe")
+    if state.field.tailwind_turns.get("player", 0) > 0:
+        p_spe *= 2
+    if state.field.tailwind_turns.get("enemy", 0) > 0:
+        e_spe *= 2
+    if state.field.trick_room_turns > 0:
+        p_spe, e_spe = e_spe, p_spe
     if p_spe != e_spe:
         return (["player", "enemy"] if p_spe > e_spe else ["enemy", "player"]), False
 
@@ -549,6 +565,16 @@ def _apply_end_of_turn_field(state: BattleState, log) -> None:
         if field.weather_turns == 0:
             log.append(f"The {field.weather} weather faded.")
             field.weather = None
+
+    if field.trick_room_turns > 0:
+        field.trick_room_turns -= 1
+        if field.trick_room_turns == 0:
+            log.append("The twisted dimensions returned to normal.")
+    for side in ("player", "enemy"):
+        if field.tailwind_turns.get(side, 0) > 0:
+            field.tailwind_turns[side] -= 1
+            if field.tailwind_turns[side] == 0:
+                log.append(f"Tailwind on {side}'s side faded.")
 
     # Protect only lasts for the current turn.
     for mon in (state.player_mon, state.enemy_mon):
