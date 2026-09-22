@@ -335,6 +335,32 @@ def _setup_category(move):
     if name in DEFENSIVE_SETUP_MOVES: return "defensive"
     return None
 
+FIELD_CONTROL_MOVES = {"tailwind", "trick-room"}
+
+def _score_field_control_move(state, attacker, defender, move, side, rng):
+    name = _move_name(move)
+    if name not in FIELD_CONTROL_MOVES:
+        return None
+    if name == "tailwind":
+        if state.field.tailwind_turns.get(side, 0) > 0:
+            return -20.0
+        if _has_move_named(attacker, {"trick-room"}) and state.field.trick_room_turns > 0:
+            return -1.0 if _random_chance(rng, 0.50) else 0.0
+        target_team = state.side_team(state.other_side(side))
+        faster_than_any = any(
+            not mon.is_fainted and attacker.effective_stat("spe") < mon.effective_stat("spe")
+            for mon in target_team
+        )
+        return 3.0 if faster_than_any else 0.0
+    if state.field.trick_room_turns > 0:
+        return -1.0 if _random_chance(rng, 0.50) else 0.0
+    target_team = state.side_team(state.other_side(side))
+    slower_than_any = any(
+        not mon.is_fainted and attacker.effective_stat("spe") > mon.effective_stat("spe")
+        for mon in target_team
+    )
+    return 4.0 if slower_than_any else -1.0
+
 HAZARD_MOVES = {
     "stealth_rock": {"stealth-rock", "stone-axe"},
     "spikes": {"spikes", "ceaseless-edge"},
@@ -511,6 +537,9 @@ def score_enemy_move(state, action, *, side="enemy", rng=None):
     move = mon.moves[action["move_index"]]
 
     if move.category == "status" or move.power <= 0:
+        field_score = _score_field_control_move(state, mon, opponent, move, side, rng)
+        if field_score is not None:
+            return field_score
         hazard_score = _score_hazard_move(state, mon, opponent, move, side, rng)
         if hazard_score is not None:
             return hazard_score
