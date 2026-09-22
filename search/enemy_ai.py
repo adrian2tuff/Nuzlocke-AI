@@ -870,7 +870,10 @@ def score_enemy_move(state, action, *, side="enemy", rng=None):
     tactical_score = _score_special_tactical_move(state, mon, opponent, move, rng)
     if tactical_score is not None:
         return tactical_score
-\n    special_utility_score = _score_special_utility_move(state, mon, opponent, move)\n    if special_utility_score is not None:\n        return special_utility_score\n
+    special_utility_score = _score_special_utility_move(state, mon, opponent, move)
+    if special_utility_score is not None:
+        return special_utility_score
+
     self_destruct_score = _score_self_destruct_move(state, mon, opponent, move, side, rng)
     if self_destruct_score is not None:
         return self_destruct_score
