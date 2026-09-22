@@ -74,7 +74,7 @@ def _pokemon_key(mon) -> tuple:
     """Hashable battle-relevant snapshot for the transposition table."""
     return (
         mon.species.name, mon.level, mon.current_hp, mon.status,
-        mon.status_turns, frozenset(mon.volatile),
+        mon.status_turns, frozenset(mon.volatile), mon.choice_lock,
         tuple(mon.stat_stages.values()),
         tuple(mv.pp for mv in mon.moves), mon.ability, mon.item,
     )
