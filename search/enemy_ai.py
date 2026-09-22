@@ -207,11 +207,9 @@ def _score_offensive_setup(state, mon, player, move, rng):
         score = 1.0 if player.effective_stat("spe") >= mon.effective_stat("spe") else 2.0
     stat = move.effect_data.get("stat") if move.effect == "stat_change" else None
     stages = move.effect_data.get("stages", 0) if move.effect == "stat_change" else 0
-    if stat == "atk" and mon.effective_stat("spe") > player.effective_stat("spe") and _has_move_named(player, {"burning-jealousy"}):
+    if stat == "atk" and mon.effective_stat("spe") > player.effective_stat("spe") and _has_move_named(player, {"burning-jealousy", "alluring-voice"}):
         score -= 5.0
     if stat == "atk" and (_has_move_named(player, {"foul-play"}) or _player_has_confusion_move(player)):
-        score -= 5.0
-    if _player_has_phazing(player) and _ai_has_other_living_mon(state, "enemy"):
         score -= 5.0
     if stat in {"atk", "spa"} and mon.stat_stages.get(stat, 0) + stages >= 2 and _random_chance(rng, 0.80):
         score -= 1.0
