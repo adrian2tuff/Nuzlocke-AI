@@ -470,6 +470,35 @@ class TestEnemyPolicy(unittest.TestCase):
         state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
         self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), -20.0)
 
+    def test_counter_rewards_physical_damage_that_would_ko(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [move("counter", "fighting", "physical", 0)])
+        player.current_hp = 50
+        enemy.last_damage_taken = 30
+        enemy.last_damage_category = "physical"
+        enemy.volatile.add("last-damage")
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 12.0)
+
+    def test_mirror_coat_rejects_physical_last_damage(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [move("mirror-coat", "psychic", "special", 0)])
+        enemy.last_damage_taken = 30
+        enemy.last_damage_category = "physical"
+        enemy.volatile.add("last-damage")
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), -20.0)
+
+    def test_metal_burst_uses_one_point_five_times_last_damage(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [move("metal-burst", "steel", "physical", 0)])
+        player.current_hp = 50
+        enemy.last_damage_taken = 30
+        enemy.last_damage_category = "physical"
+        enemy.volatile.add("last-damage")
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 6.0)
+
     def test_ohko_move_scores_higher_against_three_hit_target(self):
         player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 20)])
         enemy = make_mon("Enemy", ["normal"], [move("horn-drill", "normal", "physical", 0), move("tackle", "normal", "physical", 100)])
