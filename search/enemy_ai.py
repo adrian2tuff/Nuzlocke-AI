@@ -144,7 +144,7 @@ def _score_status_move(attacker, defender, move):
     """
     return 6.0
 
-SETUP_HARD_COUNTERS = {"unaware", "haze", "clear-smog", "freezy-frost", "topsy-turvy"}
+SETUP_HARD_COUNTER_MOVES = {"haze", "clear-smog", "freezy-frost", "topsy-turvy"}
 PHASING_MOVES = {"roar", "whirlwind", "dragon-tail", "circle-throw"}
 OFFENSIVE_SETUP_MOVES = {"tidy-up", "dragon-dance", "shift-gear", "howl", "meditate", "sharpen", "swords-dance", "growth", "nasty-plot", "tail-glow", "hone-claws", "work-up", "power-up-punch", "mystical-power", "torch-song", "contrary-leaf-storm", "contrary-overheat", "contrary-draco-meteor"}
 DEFENSIVE_SETUP_MOVES = {"stuff-cheeks", "harden", "withdraw", "barrier", "acid-armor", "iron-defense", "cotton-guard", "shelter", "amnesia", "defense-curl", "stockpile", "cosmic-power", "psyshield-bash"}
@@ -162,7 +162,13 @@ def _player_has_phazing(pokemon):
     return _has_move_named(pokemon, PHASING_MOVES)
 
 def _player_has_hard_setup_counter(pokemon):
-    return _has_move_named(pokemon, SETUP_HARD_COUNTERS)
+    return pokemon.ability.lower().replace(" ", "-") == "unaware" or _has_move_named(pokemon, SETUP_HARD_COUNTER_MOVES)
+
+def _player_has_confusion_move(pokemon):
+    return _has_move_named(pokemon, {"confuse-ray", "supersonic", "teeter-dance", "swagger", "flatter", "dynamic-punch", "hurricane", "rock-climb", "signal-beam", "sweet-kiss", "chatter", "psybeam", "water-pulse", "dizzy-punch"})
+
+def _ai_has_other_living_mon(state, side):
+    return sum(not mon.is_fainted for mon in state.side_team(side) if mon is not state.active_mon(side)) > 0
 
 def _is_incapacitated(pokemon):
     return pokemon.status in {"sleep", "freeze"} or "flinch" in pokemon.volatile
@@ -185,7 +191,7 @@ def _setup_base_penalty(state, mon, player):
         return -20.0
     if _player_fast_kills_in_two(player, mon, state.field):
         return -5.0
-    if _player_has_phazing(player):
+    if _player_has_phazing(player) and _ai_has_other_living_mon(state, "enemy"):
         return -5.0
     return None
 
@@ -200,7 +206,14 @@ def _score_offensive_setup(state, mon, player, move, rng):
     if hits is not None and hits >= 4:
         score = 1.0 if player.effective_stat("spe") >= mon.effective_stat("spe") else 2.0
     stat = move.effect_data.get("stat") if move.effect == "stat_change" else None
-    if stat in {"atk", "spa"} and mon.stat_stages.get(stat, 0) >= 2 and _random_chance(rng, 0.80):
+    stages = move.effect_data.get("stages", 0) if move.effect == "stat_change" else 0
+    if stat == "atk" and mon.effective_stat("spe") > player.effective_stat("spe") and _has_move_named(player, {"burning-jealousy"}):
+        score -= 5.0
+    if stat == "atk" and (_has_move_named(player, {"foul-play"}) or _player_has_confusion_move(player)):
+        score -= 5.0
+    if _player_has_phazing(player) and _ai_has_other_living_mon(state, "enemy"):
+        score -= 5.0
+    if stat in {"atk", "spa"} and mon.stat_stages.get(stat, 0) + stages >= 2 and _random_chance(rng, 0.80):
         score -= 1.0
     return score
 
@@ -217,12 +230,12 @@ def _score_defensive_setup(state, mon, player, move, rng):
     if stat == "def":
         if _player_has_attack_category(player, "physical") and not _player_has_attack_category(player, "special"):
             score = 1.0
-        if mon.stat_stages.get("def", 0) >= 2 and not _has_move_named(mon, {"body-press"}):
+        if mon.stat_stages.get("def", 0) + move.effect_data.get("stages", 0) >= 2 and not _has_move_named(mon, {"body-press"}):
             score -= 1.0
     elif stat in {"spd", "spdef"}:
         if _player_has_attack_category(player, "special") and not _player_has_attack_category(player, "physical"):
             score = 1.0
-        if mon.stat_stages.get("spd", 0) >= 2 and not _has_move_named(mon, {"stored-power"}):
+        if mon.stat_stages.get("spd", 0) + move.effect_data.get("stages", 0) >= 2 and not _has_move_named(mon, {"stored-power"}):
             score -= 1.0
     elif stat is None:
         if mon.stat_stages.get("def", 0) < 1 or mon.stat_stages.get("spd", 0) < 1:
