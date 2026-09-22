@@ -136,12 +136,72 @@ def choose_switch_in(state, *, side="enemy", rng=None):
             best, best_score = index, score
     return best
 
-def _score_status_move(attacker, defender, move):
-    """Documented Null baseline for non-damaging moves.
+def _score_status_move(state, attacker, defender, move, rng=None):
+    """Null scoring for sleep, poison, paralysis, burn/frostbite, and confusion."""
+    name = _move_name(move)
 
-    Move-specific exceptions will be layered on separately once their exact
-    rules are encoded; the baseline is +6.
-    """
+    if _best_damage(attacker, defender, state.field) >= defender.current_hp:
+        return 0.0
+
+    target_can_status = defender.status is None
+
+    if move.effect == "sleep" or name in {"dark-void", "hypnosis", "sing", "sleep-powder", "spore", "yawn"}:
+        if not target_can_status:
+            return -20.0
+        score = 1.0
+        if _has_move_named(attacker, {"dream-eater", "nightmare", "snore", "sleep-talk"}):
+            score += 1.0
+        if name == "dark-void" and _random_chance(rng, 0.80):
+            score += 2.0
+        return score
+
+    if move.effect in {"poison", "toxic"} or name in {"poison-powder", "toxic", "poison-gas"}:
+        if not target_can_status or defender.current_hp <= defender.max_hp * 0.20:
+            return -20.0
+        score = 0.0
+        if not any(m.category != "status" and m.power > 0 for m in defender.moves):
+            score += 1.0
+        if _has_move_named(defender, {"protect"}):
+            score += 1.0
+        if _has_move_named(attacker, {"venoshock", "hex", "infernal-parade", "venom-drench"}) or attacker.ability.lower().replace(" ", "-") == "merciless":
+            score += 1.0
+        return score
+
+    if move.effect == "paralysis" or name in {"thunder-wave", "glare", "nuzzle", "stun-spore"}:
+        if not target_can_status:
+            return -20.0
+        score = 2.0 if attacker.effective_stat("spe") < defender.effective_stat("spe") else 1.0
+        if _has_move_named(attacker, {"hex", "infernal-parade"}) or _has_move_named(attacker, {"fake-out", "bite", "air-slash", "iron-head", "rock-slide"}):
+            score += 2.0
+        if defender.status in {"confusion", "infatuation"} or "confusion" in defender.volatile:
+            score += 2.0
+        return score
+
+    if move.effect in {"burn", "frostbite"} or name in {"will-o-wisp", "scald", "flame-wheel", "ice-burn", "freezing-glare"}:
+        if not target_can_status:
+            return -20.0
+        score = 1.0
+        physical = _player_has_attack_category(defender, "physical")
+        special = _player_has_attack_category(defender, "special")
+        if move.effect == "frostbite":
+            if special:
+                score += 1.0
+        elif physical:
+            score += 1.0
+        if _has_move_named(attacker, {"hex", "infernal-parade"}):
+            score += 1.0
+        return score
+
+    if move.effect == "confusion" or name in {"confuse-ray", "supersonic", "teeter-dance", "swagger", "flatter"}:
+        if "confusion" in defender.volatile:
+            return -20.0
+        score = 1.0
+        if defender.status in {"paralysis", "infatuation"}:
+            score += 1.0
+        if attacker.ability.lower().replace(" ", "-") == "serene-grace" and _has_move_named(attacker, {"air-slash", "iron-head", "rock-slide"}):
+            score += 1.0
+        return score
+
     return 6.0
 
 SETUP_HARD_COUNTER_MOVES = {"haze", "clear-smog", "freezy-frost", "topsy-turvy"}
@@ -368,7 +428,7 @@ def score_enemy_move(state, action, *, side="enemy", rng=None):
         setup_score = _score_setup_move(state, mon, opponent, move, rng)
         if setup_score is not None:
             return setup_score
-        return 6.0
+        return _score_status_move(state, mon, opponent, move, rng)
 
     damage = _max_damage(mon, opponent, move, state.field)
     if damage <= 0:
