@@ -470,6 +470,26 @@ class TestEnemyPolicy(unittest.TestCase):
         state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
         self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), -20.0)
 
+    def test_ohko_move_scores_higher_against_three_hit_target(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 20)])
+        enemy = make_mon("Enemy", ["normal"], [move("horn-drill", "normal", "physical", 0)])
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 6.0)
+
+    def test_ohko_move_gets_lock_on_bonus(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [move("horn-drill", "normal", "physical", 0)])
+        enemy.volatile.add("lock-on")
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 8.0)
+
+    def test_ohko_move_penalized_by_sturdy(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [move("fissure", "ground", "physical", 0)])
+        player.ability = "sturdy"
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), -20.0)
+
     def test_fake_out_gets_strong_score(self):
         player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
         enemy = make_mon("Enemy", ["normal"], [move("fake-out", "normal", "physical", 40)])
