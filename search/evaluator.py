@@ -18,7 +18,7 @@ from engine.mechanics import type_effectiveness
 from search.replaceability import compute_replaceability
 
 
-ALIVE_WEIGHT = 0.34
+ALIVE_WEIGHT = 0.28
 HP_WEIGHT = 0.24
 REPLACEABILITY_WEIGHT = 0.18
 STATUS_WEIGHT = 0.08
@@ -141,6 +141,34 @@ def _hazard_score(state: BattleState, side: str) -> float:
     return (defensive + offensive) / 2.0
 
 
+def _switch_punishment_score(state: BattleState, side: str) -> float:
+    """Value having the opponent's active Pokemon trapped in a good matchup."""
+    opponent = state.other_side(side)
+    mine = state.active_mon(side)
+    theirs = state.active_mon(opponent)
+
+    if mine.is_fainted or theirs.is_fainted:
+        return 0.0
+
+    if "trapped" not in theirs.volatile:
+        return 0.0
+
+    bench_count = sum(
+        not mon.is_fainted
+        for i, mon in enumerate(state.side_team(opponent))
+        if i != state.active_index(opponent)
+    )
+    if bench_count == 0:
+        return 0.0
+
+    matchup = _active_matchup_score(state, side)
+    if matchup <= 0:
+        return 0.0
+
+    # More available escape routes make removing those routes more valuable.
+    return matchup * min(1.0, 0.25 + 0.15 * bench_count)
+
+
 def _active_matchup_score(state: BattleState, side: str) -> float:
     """Position-only typing/coverage/speed signal; damage stays in simulator."""
     other = state.other_side(side)
@@ -190,6 +218,10 @@ def evaluate_breakdown(state: BattleState, watch: str = "player") -> EvaluationB
         _status_score(state, other),
     )
     active_matchup = _active_matchup_score(state, watch)
+    switch_punishment = (
+        _switch_punishment_score(state, watch)
+        - _switch_punishment_score(state, other)
+    )
     hazards = _ratio_advantage(
         _hazard_score(state, watch),
         _hazard_score(state, other),
@@ -202,6 +234,7 @@ def evaluate_breakdown(state: BattleState, watch: str = "player") -> EvaluationB
         + STATUS_WEIGHT * status
         + ACTIVE_MATCHUP_WEIGHT * active_matchup
         + HAZARD_WEIGHT * hazards
+        + 0.06 * switch_punishment
     )
 
     return EvaluationBreakdown(
