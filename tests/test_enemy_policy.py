@@ -492,7 +492,7 @@ class TestEnemyPolicy(unittest.TestCase):
 
     def test_sucker_punch_rewards_slow_ko(self):
         player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
-        enemy = make_mon("Enemy", ["normal"], [move("sucker-punch", "dark", "physical", 300)])
+        enemy = make_mon("Enemy", ["normal"], [move("sucker-punch", "dark", "physical", 1000)])
         enemy.stat_stages["spe"] = -6
         state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
         self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 11.0)
