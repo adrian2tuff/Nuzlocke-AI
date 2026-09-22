@@ -347,9 +347,12 @@ def _apply_move_effect(
                 removed.append("Spikes")
             if hazards["toxic_spikes"]:
                 removed.append("Toxic Spikes")
+            if hazards["sticky_web"]:
+                removed.append("Sticky Web")
             hazards["stealth_rock"] = False
             hazards["spikes"] = 0
             hazards["toxic_spikes"] = 0
+            hazards["sticky_web"] = False
             if removed:
                 log.append(f"{attacker.display_name()} cleared {', '.join(removed)} from its side!")
         return
@@ -369,6 +372,11 @@ def _apply_move_effect(
             current = field.hazards[attacker_side]["toxic_spikes"]
             field.hazards[attacker_side]["toxic_spikes"] = min(2, current + 1)
             log.append(f"Toxic Spikes were scattered around the opposing team! ({field.hazards[attacker_side]['toxic_spikes']} layer(s))")
+        return
+    if eff == "sticky_web":
+        if field is not None and attacker_side is not None:
+            field.hazards[attacker_side]["sticky_web"] = True
+            log.append("A sticky web spread out around the opposing team!")
         return
     if eff == "stat_change":
         _apply_stat_change(target, data["stat"], data["stages"], log)
@@ -475,6 +483,11 @@ def _apply_switch(state: BattleState, side: str, target_index: int, log: list[st
     # Spikes only affect grounded Pokemon. One, two, and three layers deal
     # 1/8, 1/6, and 1/4 of max HP respectively.
     grounded = "flying" not in incoming.species.types and incoming.ability != "levitate"
+    if grounded and hazards["sticky_web"] and incoming.stat_stages.get("spe", 0) > -6:
+        if incoming.ability not in {"clear-body", "white-smoke", "full-metal-body"}:
+            incoming.stat_stages["spe"] = max(-6, incoming.stat_stages.get("spe", 0) - 1)
+            log.append(f"{incoming.display_name()}'s Speed fell because of Sticky Web!")
+
     if grounded:
         layers = hazards["spikes"]
         if layers:
