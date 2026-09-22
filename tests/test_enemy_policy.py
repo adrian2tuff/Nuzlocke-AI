@@ -392,6 +392,37 @@ class TestEnemyPolicy(unittest.TestCase):
         state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
         self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}, rng=random.Random(1)), -1.0)
 
+    def test_u_turn_is_baseline_pivot(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [move("u-turn", "bug", "physical", 70)])
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 6.0)
+
+    def test_pivot_gets_palafin_bonus(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [move("flip-turn", "water", "physical", 60)])
+        enemy.ability = "zero-to-hero"
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 12.0)
+
+    def test_pivot_is_penalized_against_phazing(self):
+        player = make_mon("Player", ["normal"], [move("roar", "normal", "status", 0)])
+        enemy = make_mon("Enemy", ["normal"], [move("u-turn", "bug", "physical", 70)])
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), -1.0)
+
+    def test_pivot_gets_long_kill_bonus(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [move("u-turn", "bug", "physical", 20)])
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 6.0)
+
+    def test_baton_pass_gets_negative_when_phazing_without_boosts(self):
+        player = make_mon("Player", ["normal"], [move("roar", "normal", "status", 0)])
+        enemy = make_mon("Enemy", ["normal"], [move("baton-pass", "normal", "status", 0)])
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), -20.0)
+
     def test_explosion_prefers_low_hp(self):
         player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
         enemy = make_mon("Enemy", ["normal"], [move("explosion", "normal", "physical", 250)])
