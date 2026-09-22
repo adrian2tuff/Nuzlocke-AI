@@ -792,13 +792,6 @@ def _enumerate_multi_hit_move(
                                     )
                                     continue
 
-                            if attacker_b.item == "life-orb" and dmg > 0:
-                                life_damage = max(1, attacker_b.max_hp // 10)
-                                attacker_b.current_hp = max(0, attacker_b.current_hp - life_damage)
-                                branch_log += f" {attacker_b.display_name()} lost HP from Life Orb! (-{life_damage} HP)"
-                                if attacker_b.is_fainted:
-                                    branch_log += f" {attacker_b.display_name()} fainted!"
-
                             if not defender_b.is_fainted and effect_triggers:
                                 if move_b.effect == "sleep" and sleep_turns is not None:
                                     if defender_b.status is None:
@@ -829,7 +822,24 @@ def _enumerate_multi_hit_move(
 
         states = list(next_states.values())
 
-    return states
+    finalized = []
+    for probability, branch, description in states:
+        attacker_b = branch.active_mon(side)
+        m = attacker_b.moves[action["move_index"]]
+        sheer_force = (
+            attacker_b.ability == "sheer-force"
+            and m.category != "status"
+            and m.effect is not None
+            and m.effect_chance > 0
+        )
+        if attacker_b.item == "life-orb" and not sheer_force and not attacker_b.is_fainted:
+            life_damage = max(1, attacker_b.max_hp // 10)
+            attacker_b.current_hp = max(0, attacker_b.current_hp - life_damage)
+            if include_descriptions:
+                description = (description + "; " if description else "") + f"{attacker_b.display_name()} lost HP from Life Orb! (-{life_damage} HP)"
+        finalized.append((probability, branch, description))
+
+    return finalized
 
 
 def enumerate_turn_outcomes(
