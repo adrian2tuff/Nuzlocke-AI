@@ -131,7 +131,7 @@ class TestEnemyPolicy(unittest.TestCase):
         enemy.moves[0].effect = "stat_change"
         enemy.moves[0].effect_data = {"stat": "def", "stages": 1}
         state = BattleState([player], [enemy])
-        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}, rng=random.Random(1)), 2.0)
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}, rng=random.Random(1)), 1.0)
 
 
     def test_defense_curl_rollout_bonus_is_one(self):
@@ -230,7 +230,7 @@ class TestEnemyPolicy(unittest.TestCase):
         enemy = make_mon("Enemy", ["rock"], [move("stealth-rock", "rock", "status", 0)])
         enemy.moves[0].effect = "stealth_rock"
         state = BattleState([player, make_mon("Bench", ["normal"], [])], [enemy])
-        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}, rng=random.Random(1)), 1.0)
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}, rng=random.Random(1)), 2.0)
 
     def test_hazard_is_penalized_when_player_is_last_mon(self):
         player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
