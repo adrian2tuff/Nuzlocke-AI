@@ -470,6 +470,47 @@ class TestEnemyPolicy(unittest.TestCase):
         state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
         self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), -20.0)
 
+    def test_fake_out_gets_strong_score(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [move("fake-out", "normal", "physical", 40)])
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 9.0)
+
+    def test_fake_out_can_be_avoided_against_flinch_immune_target(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        player.volatile.add("flinch-immune")
+        enemy = make_mon("Enemy", ["normal"], [move("fake-out", "normal", "physical", 40)])
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), -30.0)
+
+    def test_feint_rewards_protection(self):
+        player = make_mon("Player", ["normal"], [move("protect", "normal", "status", 0)])
+        player.volatile.add("protect")
+        enemy = make_mon("Enemy", ["normal"], [move("feint", "normal", "physical", 30)])
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}, rng=random.Random(1)), 6.0)
+
+    def test_sucker_punch_rewards_slow_ko(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [move("sucker-punch", "dark", "physical", 70)])
+        enemy.stat_stages["spe"] = -6
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 11.0)
+
+    def test_pursuit_rewards_low_hp_target(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        player.current_hp = 15
+        enemy = make_mon("Enemy", ["normal"], [move("pursuit", "dark", "physical", 40)])
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 10.0)
+
+    def test_counter_requires_physical_last_damage(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        player.volatile.add("last-damage")
+        enemy = make_mon("Enemy", ["normal"], [move("counter", "fighting", "physical", 0)])
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), -20.0)
+
     def test_explosion_prefers_low_hp(self):
         player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
         enemy = make_mon("Enemy", ["normal"], [move("explosion", "normal", "physical", 250)])
