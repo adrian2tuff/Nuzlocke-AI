@@ -764,3 +764,45 @@ if __name__ == "__main__":
         enemy = make_mon("Enemy", ["normal"], [move("copycat", "normal", "status", 0)])
         state = BattleState([player], [enemy])
         self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 0.0)
+
+
+    def test_baton_pass_rewards_positive_boost(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [move("baton-pass", "normal", "status", 0)])
+        enemy.stat_stages["atk"] = 1
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}, rng=random.Random(1)), 1.0)
+
+    def test_snore_requires_sleep(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [move("snore", "normal", "special", 50)])
+        state = BattleState([player], [enemy])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), -20.0)
+
+    def test_sleep_talk_is_strong_while_asleep(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [move("sleep-talk", "normal", "status", 0)])
+        enemy.status = "sleep"
+        enemy.status_turns = 3
+        state = BattleState([player], [enemy])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 15.0)
+
+    def test_laser_focus_rewards_sniper(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [move("laser-focus", "normal", "status", 0)])
+        enemy.ability = "Sniper"
+        state = BattleState([player], [enemy])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 7.0)
+
+    def test_focus_energy_gets_crit_synergy(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [move("focus-energy", "normal", "status", 0)])
+        enemy.ability = "Super Luck"
+        state = BattleState([player], [enemy])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 7.0)
+
+    def test_conversion_rewards_usable_type_change(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("normal-enemy", ["normal"], [move("conversion", "normal", "status", 0), move("flamethrower", "fire", "special", 90)])
+        state = BattleState([player], [enemy])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 2.0)
