@@ -144,6 +144,130 @@ def _score_status_move(attacker, defender, move):
     """
     return 6.0
 
+SETUP_HARD_COUNTERS = {"unaware", "haze", "clear-smog", "freezy-frost", "topsy-turvy"}
+PHASING_MOVES = {"roar", "whirlwind", "dragon-tail", "circle-throw"}
+OFFENSIVE_SETUP_MOVES = {"tidy-up", "dragon-dance", "shift-gear", "howl", "meditate", "sharpen", "swords-dance", "growth", "nasty-plot", "tail-glow", "hone-claws", "work-up", "power-up-punch", "mystical-power", "torch-song", "contrary-leaf-storm", "contrary-overheat", "contrary-draco-meteor"}
+DEFENSIVE_SETUP_MOVES = {"stuff-cheeks", "harden", "withdraw", "barrier", "acid-armor", "iron-defense", "cotton-guard", "shelter", "amnesia", "defense-curl", "stockpile", "cosmic-power", "psyshield-bash"}
+SPEED_SETUP_MOVES = {"autotomize", "agility", "rock-polish", "trailblaze", "flame-charge", "aqua-step", "esper-wing", "scale-shot"}
+MIXED_SETUP_MOVES = {"no-retreat", "victory-dance", "coil", "bulk-up", "curse", "contrary-superpower", "calm-mind", "quiver-dance"}
+EVASION_SETUP_MOVES = {"double-team", "minimize"}
+
+def _has_move_named(pokemon, names):
+    return any(_move_name(move) in names for move in pokemon.moves)
+
+def _player_has_attack_category(pokemon, category):
+    return any(move.category == category and move.power > 0 for move in pokemon.moves)
+
+def _player_has_phazing(pokemon):
+    return _has_move_named(pokemon, PHASING_MOVES)
+
+def _player_has_hard_setup_counter(pokemon):
+    return _has_move_named(pokemon, SETUP_HARD_COUNTERS)
+
+def _is_incapacitated(pokemon):
+    return pokemon.status in {"sleep", "freeze"} or "flinch" in pokemon.volatile
+
+def _player_kill_hits(attacker, defender, field):
+    return _ko_hits(attacker, defender, field)
+
+def _player_fast_kills_in_two(attacker, defender, field):
+    hits = _player_kill_hits(attacker, defender, field)
+    return hits == 2 and attacker.effective_stat("spe") >= defender.effective_stat("spe")
+
+def _random_chance(rng, probability):
+    roller = rng if rng is not None else random.Random()
+    return roller.random() < probability
+
+def _setup_base_penalty(state, mon, player):
+    if _player_has_hard_setup_counter(player):
+        return -20.0
+    if _player_kill_hits(player, mon, state.field) == 1:
+        return -20.0
+    if _player_fast_kills_in_two(player, mon, state.field):
+        return -5.0
+    if _player_has_phazing(player):
+        return -5.0
+    return None
+
+def _score_offensive_setup(state, mon, player, move, rng):
+    penalty = _setup_base_penalty(state, mon, player)
+    if penalty is not None:
+        return penalty
+    if _is_incapacitated(player) and _random_chance(rng, 0.90):
+        return 3.0
+    hits = _player_kill_hits(player, mon, state.field)
+    score = 0.0
+    if hits is not None and hits >= 4:
+        score = 1.0 if player.effective_stat("spe") >= mon.effective_stat("spe") else 2.0
+    stat = move.effect_data.get("stat") if move.effect == "stat_change" else None
+    if stat in {"atk", "spa"} and mon.stat_stages.get(stat, 0) >= 2 and _random_chance(rng, 0.80):
+        score -= 1.0
+    return score
+
+def _score_defensive_setup(state, mon, player, move, rng):
+    penalty = _setup_base_penalty(state, mon, player)
+    if penalty is not None:
+        return penalty
+    if not _random_chance(rng, 0.80):
+        return 0.0
+    if _is_incapacitated(player) and _random_chance(rng, 0.90):
+        return 2.0
+    stat = move.effect_data.get("stat") if move.effect == "stat_change" else None
+    score = 0.0
+    if stat == "def":
+        if _player_has_attack_category(player, "physical") and not _player_has_attack_category(player, "special"):
+            score = 1.0
+        if mon.stat_stages.get("def", 0) >= 2 and not _has_move_named(mon, {"body-press"}):
+            score -= 1.0
+    elif stat in {"spd", "spdef"}:
+        if _player_has_attack_category(player, "special") and not _player_has_attack_category(player, "physical"):
+            score = 1.0
+        if mon.stat_stages.get("spd", 0) >= 2 and not _has_move_named(mon, {"stored-power"}):
+            score -= 1.0
+    elif stat is None:
+        if mon.stat_stages.get("def", 0) < 1 or mon.stat_stages.get("spd", 0) < 1:
+            score = 2.0
+    if _has_move_named(mon, {"stored-power", "body-press"}) and _random_chance(rng, 0.50):
+        score += 1.0
+    return score
+
+def _score_speed_setup(state, mon, player, move, rng):
+    if _player_has_hard_setup_counter(player) or _player_has_phazing(player):
+        return -20.0
+    if mon.effective_stat("spe") >= player.effective_stat("spe"):
+        return -20.0
+    return 1.0 if _random_chance(rng, 0.80) else 0.0
+
+def _score_evasion_setup(state, mon, player, move, rng):
+    if _player_has_hard_setup_counter(player) or _player_has_phazing(player):
+        return -20.0
+    if mon.current_hp > mon.max_hp * 0.90:
+        return 1.0 if _random_chance(rng, 0.80) else 0.0
+    if mon.current_hp > mon.max_hp * 0.60:
+        return 1.0 if _random_chance(rng, 0.60) else 0.0
+    return 0.0
+
+def _setup_category(move):
+    name = _move_name(move)
+    if name in SPEED_SETUP_MOVES: return "speed"
+    if name in EVASION_SETUP_MOVES: return "evasion"
+    if name in MIXED_SETUP_MOVES: return "mixed"
+    if name in OFFENSIVE_SETUP_MOVES: return "offensive"
+    if name in DEFENSIVE_SETUP_MOVES: return "defensive"
+    return None
+
+def _score_setup_move(state, mon, player, move, rng):
+    category = _setup_category(move)
+    if category == "offensive": return _score_offensive_setup(state, mon, player, move, rng)
+    if category == "defensive": return _score_defensive_setup(state, mon, player, move, rng)
+    if category == "speed": return _score_speed_setup(state, mon, player, move, rng)
+    if category == "evasion": return _score_evasion_setup(state, mon, player, move, rng)
+    if category == "mixed":
+        stat = move.effect_data.get("stat") if move.effect == "stat_change" else None
+        if stat in {"def", "spd"} and _player_has_attack_category(player, "physical" if stat == "def" else "special") and not _player_has_attack_category(player, "special" if stat == "def" else "physical"):
+            return _score_defensive_setup(state, mon, player, move, rng)
+        return _score_offensive_setup(state, mon, player, move, rng)
+    return None
 def score_enemy_move(state, action, *, side="enemy", rng=None):
     """Generic Null move score.
 
@@ -163,6 +287,9 @@ def score_enemy_move(state, action, *, side="enemy", rng=None):
     move = mon.moves[action["move_index"]]
 
     if move.category == "status" or move.power <= 0:
+        setup_score = _score_setup_move(state, mon, opponent, move, rng)
+        if setup_score is not None:
+            return setup_score
         return 6.0
 
     damage = _max_damage(mon, opponent, move, state.field)
