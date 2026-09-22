@@ -24,6 +24,7 @@ class Field:
         "enemy": {"reflect": 0, "light_screen": 0},
     })
     trick_room_turns: int = 0
+    tailwind_turns: dict = dc_field(default_factory=lambda: {"player": 0, "enemy": 0})
 
 
 @dataclass
