@@ -109,5 +109,29 @@ class TestEnemyPolicy(unittest.TestCase):
         self.assertEqual(score_enemy_move(state, action, rng=random.Random(1)), 8.0)
 
 
+    def test_offensive_setup_penalized_by_hard_counter(self):
+        player = make_mon("Player", ["grass"], [move("haze", "ice", "status", 0)])
+        enemy = make_mon("Enemy", ["fire"], [move("swords-dance", "normal", "status", 0)])
+        enemy.moves[0].effect = "stat_change"
+        enemy.moves[0].effect_data = {"stat": "atk", "stages": 2}
+        state = BattleState([player], [enemy])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), -20.0)
+
+    def test_speed_setup_rejected_when_already_faster(self):
+        player = make_mon("Player", ["grass"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["fire"], [move("agility", "psychic", "status", 0)])
+        enemy.moves[0].effect = "stat_change"
+        enemy.moves[0].effect_data = {"stat": "spe", "stages": 2}
+        state = BattleState([player], [enemy])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), -20.0)
+
+    def test_defensive_setup_rewards_physical_only_player(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["fire"], [move("iron-defense", "steel", "status", 0)])
+        enemy.moves[0].effect = "stat_change"
+        enemy.moves[0].effect_data = {"stat": "def", "stages": 1}
+        state = BattleState([player], [enemy])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}, rng=random.Random(1)), 1.0)
+
 if __name__ == "__main__":
     unittest.main()
