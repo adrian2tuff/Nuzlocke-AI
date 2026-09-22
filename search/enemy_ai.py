@@ -1,4 +1,4 @@
-"""Null AI Support classification and post-KO switch scoring."""
+"""Null AI Support classification, switch scoring, and move selection."""
 from __future__ import annotations
 import math
 import random
@@ -68,15 +68,11 @@ def _entry_damage_fraction(state, side, candidate):
         fraction += 0.125 * type_effectiveness("rock", candidate.species.types)
     grounded = "flying" not in candidate.species.types and candidate.ability != "levitate"
     if grounded:
-        fraction += {1: 1/8, 2: 1/6, 3: 1/4}.get(hazards["spikes"], 0.0)
+        fraction += {1: 1 / 8, 2: 1 / 6, 3: 1 / 4}.get(hazards["spikes"], 0.0)
     return min(1.0, fraction)
 
 def switch_in_score(state, candidate_index, *, side="enemy", rng=None, immediate_damage=0):
-    """Core Null post-KO switch score.
-
-    Covers the documented base tiers, Support bonus, hazards, and the optional
-    immediate-damage penalty used by the switch-in AI.
-    """
+    """Core Null post-KO switch score."""
     team = state.side_team(side)
     candidate = team[candidate_index]
     target = state.active_mon(state.other_side(side))
@@ -92,7 +88,6 @@ def switch_in_score(state, candidate_index, *, side="enemy", rng=None, immediate
     candidate_ohko = candidate_damage >= target.current_hp
     target_ohko = target_damage >= candidate.current_hp
 
-    # Defensive OHKO penalty takes precedence for a slower candidate.
     if target_ohko and not faster:
         score = -1
     elif candidate_ohko and faster:
@@ -140,3 +135,59 @@ def choose_switch_in(state, *, side="enemy", rng=None):
         if score > best_score:
             best, best_score = index, score
     return best
+
+def score_enemy_move(state, action, *, side="enemy"):
+    """Initial generic Null move score; detailed move-specific rules come later."""
+    if action["type"] == "switch":
+        return float(switch_in_score(state, action["target_index"], side=side))
+
+    mon = state.active_mon(side)
+    opponent = state.active_mon(state.other_side(side))
+    move = mon.moves[action["move_index"]]
+
+    if move.category == "status" or move.power <= 0:
+        return 6.0
+
+    damage = _max_damage(mon, opponent, move, state.field)
+    if damage <= 0:
+        return 0.0
+
+    if damage >= opponent.current_hp:
+        return 12.0
+
+    hits = math.ceil(opponent.current_hp / damage)
+    if hits == 2:
+        return 9.0
+
+    effectiveness = type_effectiveness(move.type, opponent.species.types)
+    score = 3.0 + 2.0 * effectiveness
+    if mon.effective_stat("spe") > opponent.effective_stat("spe"):
+        score += 1.0
+    if move.accuracy is not None:
+        score *= move.accuracy / 100.0
+    return score
+
+def enemy_action_distribution(state, *, side="enemy"):
+    """Return the highest-scoring Null actions with uniform tie probability."""
+    actions = state.legal_actions(side)
+    if not actions:
+        return []
+    scores = [score_enemy_move(state, action, side=side) for action in actions]
+    best = max(scores)
+    tied = [action for action, score in zip(actions, scores) if score == best]
+    probability = 1.0 / len(tied)
+    return [(action, probability) for action in tied]
+
+def choose_enemy_action(state, *, side="enemy", rng=None):
+    """Sample one action from the current Null AI policy."""
+    distribution = enemy_action_distribution(state, side=side)
+    if not distribution:
+        return None
+    roller = rng if rng is not None else random.Random()
+    pick = roller.random()
+    cumulative = 0.0
+    for action, probability in distribution:
+        cumulative += probability
+        if pick < cumulative:
+            return action
+    return distribution[-1][0]
