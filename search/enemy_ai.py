@@ -428,6 +428,41 @@ def _score_protection_move(state, attacker, defender, move, rng):
         return -1.0 if _random_chance(rng, 0.50) else 0.0
     return 0.0
 
+SPECIAL_UTILITY_MOVES = {"wish", "aromatherapy", "nightmare", "perish-song", "attract"}
+
+def _score_special_utility_move(state, attacker, defender, move):
+    name = _move_name(move)
+    if name not in SPECIAL_UTILITY_MOVES:
+        return None
+
+    if name == "wish":
+        target_team = state.side_team("enemy")
+        return 1.0 if any(
+            not mon.is_fainted and mon.current_hp < mon.max_hp * 0.65
+            for mon in target_team
+        ) else 0.0
+
+    if name == "aromatherapy":
+        target_team = state.side_team("enemy")
+        return 1.0 if any(
+            not mon.is_fainted and mon.status is not None
+            for mon in target_team
+        ) else 0.0
+
+    if name == "nightmare":
+        if defender.status == "sleep":
+            return 2.0 if "trapped" in defender.volatile else 1.0
+        return -20.0
+
+    if name == "perish-song":
+        return 2.0 if "trapped" in defender.volatile else 0.0
+
+    if name == "attract":
+        return 1.0 if defender.status is not None or "trapped" in defender.volatile else 0.0
+
+    return None
+
+
 def _score_status_move(state, attacker, defender, move, rng=None):
     """Null scoring for sleep, poison, paralysis, burn/frostbite, and confusion."""
     name = _move_name(move)
@@ -835,7 +870,7 @@ def score_enemy_move(state, action, *, side="enemy", rng=None):
     tactical_score = _score_special_tactical_move(state, mon, opponent, move, rng)
     if tactical_score is not None:
         return tactical_score
-
+\n    special_utility_score = _score_special_utility_move(state, mon, opponent, move)\n    if special_utility_score is not None:\n        return special_utility_score\n
     self_destruct_score = _score_self_destruct_move(state, mon, opponent, move, side, rng)
     if self_destruct_score is not None:
         return self_destruct_score
