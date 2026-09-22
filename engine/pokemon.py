@@ -52,6 +52,8 @@ class Pokemon:
     status_turns: int = 0
     volatile: set[str] = field(default_factory=set)
     protect_streak: int = 0
+    last_damage_taken: int = 0
+    last_damage_category: str | None = None
     choice_lock: int | None = None
     stat_stages: dict[str, int] = field(default_factory=lambda: {
         "atk": 0, "def": 0, "spa": 0, "spd": 0, "spe": 0, "accuracy": 0, "evasion": 0,
