@@ -114,7 +114,24 @@ def _quick_action_heuristic(state: BattleState, side: str, action: dict) -> floa
     """
     if action["type"] == "switch":
         target = state.side_team(side)[action["target_index"]]
-        return 0.3 * target.hp_fraction  # mild preference for switching in a healthy mon
+        # A switch is only as healthy as the Pokemon after entry hazards.
+        # This is deliberately a cheap estimate for move ordering; exact
+        # hazard damage is still handled by the simulator.
+        entry_fraction = 0.0
+        hazards = state.field.hazards[side]
+
+        if hazards["stealth_rock"] and "flying" not in target.species.types:
+            mult = type_effectiveness("rock", target.species.types)
+            entry_fraction += 0.125 * mult
+
+        grounded = "flying" not in target.species.types and target.ability != "levitate"
+        if grounded:
+            entry_fraction += 0.0625 * hazards["spikes"]
+            if hazards["toxic_spikes"] and target.status is None:
+                entry_fraction += 0.08
+
+        effective_hp = max(0.0, target.hp_fraction - entry_fraction)
+        return 0.3 * effective_hp
     mon = state.active_mon(side)
     move = mon.moves[action["move_index"]]
     if move.category == "status":
