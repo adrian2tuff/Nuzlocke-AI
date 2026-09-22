@@ -250,6 +250,24 @@ def _score_pivot_move(state, attacker, defender, move, rng):
 
     return 6.0
 
+OHKO_MOVES = {"fissure", "guillotine", "horn-drill", "sheer-cold"}
+
+def _score_ohko_move(state, attacker, defender, move, rng):
+    name = _move_name(move)
+    if name not in OHKO_MOVES:
+        return None
+
+    # The Null AI strongly discounts OHKO moves against targets with a
+    # reliable survival mechanism.
+    if defender.item in {"focus-band", "focus-sash"} or defender.ability.lower().replace(" ", "-") == "sturdy":
+        return -20.0
+
+    if "lock-on" in attacker.volatile or "locked-on" in attacker.volatile:
+        return 8.0
+
+    hits = _player_kill_hits(attacker, defender, state.field)
+    return 6.0 if hits is not None and hits >= 3 else 5.0
+
 SPECIAL_TACTICAL_MOVES = {"fake-out", "feint", "upper-hand", "sucker-punch", "thunderclap", "pursuit", "counter", "mirror-coat", "metal-burst"}
 
 def _score_special_tactical_move(state, attacker, defender, move, rng):
@@ -795,6 +813,10 @@ def score_enemy_move(state, action, *, side="enemy", rng=None):
     mon = state.active_mon(side)
     opponent = state.active_mon(state.other_side(side))
     move = mon.moves[action["move_index"]]
+
+    ohko_score = _score_ohko_move(state, mon, opponent, move, rng)
+    if ohko_score is not None:
+        return ohko_score
 
     tactical_score = _score_special_tactical_move(state, mon, opponent, move, rng)
     if tactical_score is not None:
