@@ -336,3 +336,39 @@ if __name__ == "__main__":
         from engine.simulator import step
         next_state = step(state, {"type": "move", "move_index": 0}, {"type": "move", "move_index": 0}, rng=random.Random(1))
         self.assertFalse(next_state.field.hazards["player"]["sticky_web"])
+
+
+    def test_tailwind_gets_bonus_when_enemy_is_slower(self):
+        player = make_mon("Fast", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Slow", ["flying"], [move("tailwind", "flying", "status", 0)])
+        enemy.moves[0].effect = "tailwind"
+        enemy.moves[0].effect_data = {"turns": 4}
+        enemy.stat_stages["spe"] = -6
+        state = BattleState([player], [enemy])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 3.0)
+
+    def test_trick_room_gets_bonus_when_enemy_is_faster(self):
+        player = make_mon("Fast", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Slow", ["psychic"], [move("trick-room", "psychic", "status", 0)])
+        enemy.moves[0].effect = "trick_room"
+        enemy.moves[0].effect_data = {"turns": 5}
+        state = BattleState([player], [enemy])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 4.0)
+
+    def test_trick_room_reverses_turn_order(self):
+        player = make_mon("Fast", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Slow", ["psychic"], [move("trick-room", "psychic", "status", 0)])
+        enemy.moves[0].effect = "trick_room"
+        state = BattleState([player], [enemy])
+        state.field.trick_room_turns = 3
+        from engine.simulator import turn_order
+        self.assertEqual(turn_order(state, {"type": "move", "move_index": 0}, {"type": "move", "move_index": 0}), ["enemy", "player"])
+
+    def test_tailwind_doubles_side_speed(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["flying"], [move("tailwind", "flying", "status", 0)])
+        enemy.moves[0].effect = "tailwind"
+        state = BattleState([player], [enemy])
+        state.field.tailwind_turns["enemy"] = 4
+        from engine.simulator import turn_order
+        self.assertEqual(turn_order(state, {"type": "move", "move_index": 0}, {"type": "move", "move_index": 0}), ["enemy", "player"])
