@@ -338,6 +338,9 @@ def _setup_category(move):
 def _score_stat_lowering_move(state, attacker, defender, move, rng):
     """Null scoring for speed, stat, and accuracy-lowering moves."""
     stat = move.effect_data.get("stat") if move.effect == "stat_change" else None
+    stages = move.effect_data.get("stages", 0) if move.effect == "stat_change" else 0
+    if stages >= 0:
+        return None
 
     if stat == "spe":
         if attacker.effective_stat("spe") < defender.effective_stat("spe"):
