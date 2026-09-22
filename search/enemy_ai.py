@@ -151,6 +151,8 @@ DEFENSIVE_SETUP_MOVES = {"stuff-cheeks", "harden", "withdraw", "barrier", "acid-
 SPEED_SETUP_MOVES = {"autotomize", "agility", "rock-polish", "trailblaze", "flame-charge", "aqua-step", "esper-wing", "scale-shot"}
 MIXED_SETUP_MOVES = {"no-retreat", "victory-dance", "coil", "bulk-up", "curse", "contrary-superpower", "calm-mind", "quiver-dance"}
 EVASION_SETUP_MOVES = {"double-team", "minimize"}
+SHELL_SMASH_SETUP_MOVES = {"shell-smash", "belly-drum", "fillet-away", "clangorous-soul"}
+SPECIAL_SETUP_MOVES = {"rapid-spin", "order-up", "charge", "defense-curl", "stockpile", "fell-stinger", "meteor-beam", "electro-shot", "geomancy", "acupressure"}
 
 def _has_move_named(pokemon, names):
     return any(_move_name(move) in names for move in pokemon.moves)
@@ -268,6 +270,70 @@ def _setup_category(move):
     return None
 
 def _score_setup_move(state, mon, player, move, rng):
+    name = _move_name(move)
+
+    if name == "rapid-spin":
+        score = _score_speed_setup(state, mon, player, move, rng)
+        hazards = state.field.hazards.get("enemy", {})
+        if hazards.get("stealth_rock") or hazards.get("spikes", 0) or hazards.get("toxic_spikes", 0) or hazards.get("sticky_web"):
+            if _random_chance(rng, 0.50):
+                score += 2.0
+        if "leech-seed" in mon.volatile or "wrapped" in mon.volatile:
+            score += 1.0
+        return score
+
+    if name == "charge":
+        if _player_kill_hits(player, mon, state.field) == 1 or _player_has_phazing(player):
+            return -20.0
+        return 1.0 if _has_move_named(mon, {"thunderbolt", "thunder", "discharge", "parabolic-charge", "electro-shot"}) else 0.0
+
+    if name == "defense-curl":
+        if _has_move_named(mon, {"rollout", "ice-ball"}) and "defense-curled" not in mon.volatile:
+            return 7.0
+        return _score_defensive_setup(state, mon, player, move, rng)
+
+    if name == "stockpile":
+        if _has_move_named(mon, {"spit-up", "swallow"}):
+            return 7.0
+        return _score_defensive_setup(state, mon, player, move, rng)
+
+    if name == "fell-stinger":
+        if _player_kill_hits(mon, player, state.field) == 1:
+            return 9.0 if mon.effective_stat("spe") >= player.effective_stat("spe") else 6.0
+        return -20.0
+
+    if name in {"meteor-beam", "electro-shot"}:
+        return 9.0 if _random_chance(rng, 0.80) else -20.0
+
+    if name == "geomancy":
+        if _player_kill_hits(player, mon, state.field) == 1 or _player_has_hard_setup_counter(player):
+            return -20.0
+        return 9.0 if _random_chance(rng, 0.80) else -20.0
+
+    if name in SHELL_SMASH_SETUP_MOVES:
+        if ((_player_has_hard_setup_counter(player) or _player_has_phazing(player))
+                and _ai_has_other_living_mon(state, "enemy")):
+            return -20.0
+        if _is_incapacitated(player) and _random_chance(rng, 0.90):
+            return 3.0
+        if _player_kill_hits(player, mon, state.field) == 1:
+            return -20.0
+        return -2.0 if _player_kill_hits(mon, player, state.field) == 1 else 2.0
+
+    if name == "acupressure":
+        if _player_has_hard_setup_counter(player) or _player_has_phazing(player):
+            return -20.0
+        if _player_kill_hits(player, mon, state.field) == 1:
+            return -20.0
+        if _player_fast_kills_in_two(player, mon, state.field):
+            return -5.0
+        if _is_incapacitated(player) and _random_chance(rng, 0.90):
+            return 3.0
+        hits = _player_kill_hits(player, mon, state.field)
+        if hits is not None and hits >= 4:
+            return 1.0 if player.effective_stat("spe") >= mon.effective_stat("spe") else 2.0
+        return 0.0
+
     category = _setup_category(move)
     if category == "offensive": return _score_offensive_setup(state, mon, player, move, rng)
     if category == "defensive": return _score_defensive_setup(state, mon, player, move, rng)
@@ -279,6 +345,7 @@ def _score_setup_move(state, mon, player, move, rng):
             return _score_defensive_setup(state, mon, player, move, rng)
         return _score_offensive_setup(state, mon, player, move, rng)
     return None
+
 def score_enemy_move(state, action, *, side="enemy", rng=None):
     """Generic Null move score.
 
