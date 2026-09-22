@@ -39,6 +39,18 @@
     "accuracy": 100,
     "pp": 20
   },
+  "rapid-spin": {
+    "type": "normal",
+    "category": "physical",
+    "power": 50,
+    "accuracy": 100,
+    "pp": 40,
+    "effect": "hazard_removal",
+    "effect_chance": 100,
+    "effect_data": {
+      "target": "field"
+    }
+  },
   "double-edge": {
     "type": "normal",
     "category": "physical",
