@@ -2,7 +2,7 @@
 Expectiminimax search with configurable enemy behavior.
 
 The default enemy policy remains perfect MIN for backwards compatibility.
-A Null policy can instead model the documented trainer-AI behavior: the enemy
+A Null policy instead models the documented trainer-AI behavior: the enemy
 selects its highest-scoring legal action, with random selection among ties.
 """
 from __future__ import annotations
@@ -11,6 +11,7 @@ from dataclasses import dataclass, field as dc_field
 
 from engine.state import BattleState
 from engine.simulator import enumerate_turn_outcomes, summarize_risk
+from engine.mechanics import type_effectiveness
 from search.evaluator import evaluate
 from search.enemy_ai import enemy_action_distribution
 
@@ -90,7 +91,6 @@ def _quick_action_heuristic(state: BattleState, side: str, action: dict) -> floa
     move = mon.moves[action["move_index"]]
     if move.category == "status":
         return 0.1
-    from engine.mechanics import type_effectiveness
     other = state.other_side(side)
     defender = state.active_mon(other)
     mult = type_effectiveness(move.type, defender.species.types)
@@ -109,9 +109,7 @@ def _enemy_distribution(state: BattleState, policy: str):
         actions = state.legal_actions("enemy")
         if not actions:
             return []
-        probability = 1.0 / len(actions)
-        # The caller handles minimax specially; probabilities are not used.
-        return [(action, probability) for action in actions]
+        return [(action, 1.0 / len(actions)) for action in actions]
     if policy == "null":
         return enemy_action_distribution(state, side="enemy")
     raise ValueError(f"unknown enemy_policy: {policy!r}")
@@ -255,8 +253,6 @@ def search_best_action(
                     )
                     values.append((ea, probability, expected))
                 worst_value = sum(probability * expected for _, probability, expected in values)
-                # This field is retained for compatibility/transparency; under
-                # Null it reports the most damaging action among the tied policy actions.
                 worst_enemy_action = min(values, key=lambda item: item[2])[0]
 
         exact_outcomes = (
