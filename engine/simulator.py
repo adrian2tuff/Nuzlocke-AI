@@ -347,7 +347,7 @@ def _apply_move_effect(
                 removed.append("Spikes")
             if hazards["toxic_spikes"]:
                 removed.append("Toxic Spikes")
-            if hazards["sticky_web"]:
+            if hazards.get("sticky_web", False):
                 removed.append("Sticky Web")
             hazards["stealth_rock"] = False
             hazards["spikes"] = 0
