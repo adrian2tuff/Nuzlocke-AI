@@ -554,6 +554,49 @@ class TestEnemyPolicy(unittest.TestCase):
         state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
         self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 10.0)
 
+    def test_wish_rewards_injured_team_member(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [move("wish", "normal", "status", 0)])
+        enemy.current_hp = 50
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 1.0)
+
+    def test_aromatherapy_rewards_team_status(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [move("aromatherapy", "grass", "status", 0)])
+        bench = make_mon("Bench", ["normal"], [])
+        bench.status = "poison"
+        state = BattleState([player], [enemy, bench])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 1.0)
+
+    def test_nightmare_requires_sleep(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [move("nightmare", "ghost", "status", 0)])
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), -20.0)
+
+    def test_nightmare_gets_trap_bonus(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        player.status = "sleep"
+        enemy = make_mon("Enemy", ["normal"], [move("nightmare", "ghost", "status", 0)])
+        player.volatile.add("trapped")
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 2.0)
+
+    def test_perish_song_rewards_trapped_target(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [move("perish-song", "normal", "status", 0)])
+        player.volatile.add("trapped")
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 2.0)
+
+    def test_attract_rewards_status_or_trapped_target(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [move("attract", "normal", "status", 0)])
+        player.status = "paralysis"
+        state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 1.0)
+
     def test_counter_requires_physical_last_damage(self):
         player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
         enemy = make_mon("Enemy", ["normal"], [move("counter", "fighting", "physical", 0)])
