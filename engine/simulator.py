@@ -218,6 +218,8 @@ def resolve_move(
         defender.current_hp = max(0, defender.current_hp - dmg)
         total_damage += dmg
         if dmg > 0:
+            defender.last_damage_taken = dmg
+            defender.last_damage_category = move.category
             defender.volatile.add("last-damage")
             defender.volatile.discard("last-physical")
             defender.volatile.discard("last-special")
