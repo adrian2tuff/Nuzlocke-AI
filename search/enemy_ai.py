@@ -633,6 +633,21 @@ def _score_status_move(state, attacker, defender, move, rng=None):
     if move.effect == "confusion" or name in {"confuse-ray", "supersonic", "teeter-dance", "swagger", "flatter"}:
         if "confusion" in defender.volatile:
             return -20.0
+
+        # Swagger/Flatter have extra Null-AI value when the resulting
+        # confusion/stat boost can be exploited.
+        if name == "swagger" and (
+            _has_move_named(attacker, {"psych-up", "spectral-thief"})
+            or _has_move_named(defender, {"foul-play"})
+            or "mirror-herb" in attacker.volatile
+        ):
+            return 2.0
+        if name == "flatter" and (
+            _has_move_named(attacker, {"psych-up", "spectral-thief"})
+            or "mirror-herb" in attacker.volatile
+        ):
+            return 2.0
+
         score = 1.0
         if defender.status in {"paralysis", "infatuation"}:
             score += 1.0
