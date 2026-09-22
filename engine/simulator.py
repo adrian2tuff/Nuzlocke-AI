@@ -112,6 +112,7 @@ def resolve_move(
     pp_cost = 2 if defender.ability == "pressure" and move.effect_data.get("target") != "self" else 1
     move.pp = max(0, move.pp - pp_cost)
 
+    # Track the most recent damaging hit for Counter/Mirror Coat/Metal Burst.\n    # These markers persist until another damaging move replaces them, which\n    # lets the next actor evaluate the previous hit even across turn order.\n    attacker.volatile.discard("last-damage")\n    attacker.volatile.discard("last-physical")\n    attacker.volatile.discard("last-special")\n    attacker.volatile.discard("last-move")\n    attacker.volatile.add(f"last-move:{move.name.lower().replace(" ", "-")}")\n
     # Choice items lock onto the selected move until the Pokemon switches.
     if attacker.item in ("choice-band", "choice-specs", "choice-scarf") and attacker.choice_lock is None and move.category != "status":
         attacker.choice_lock = attacker.moves.index(move)
@@ -216,6 +217,11 @@ def resolve_move(
         dmg = rolls[roll_idx]
         defender.current_hp = max(0, defender.current_hp - dmg)
         total_damage += dmg
+        if dmg > 0:
+            defender.volatile.add("last-damage")
+            defender.volatile.discard("last-physical")
+            defender.volatile.discard("last-special")
+            defender.volatile.add("last-physical" if move.category == "physical" else "last-special")
 
         if move.makes_contact and defender.ability == "rough-skin" and dmg > 0:
             rough_damage = max(1, defender.max_hp // 8)
