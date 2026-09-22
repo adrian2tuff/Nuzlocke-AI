@@ -101,8 +101,8 @@ class TestEnemyPolicy(unittest.TestCase):
         player = make_mon("Player", ["grass"], [
             move("tackle", "normal", "physical", 40),
         ])
-        enemy = make_mon("Enemy", ["fire"], [
-            move("blast", "fire", "special", 80),
+        enemy = make_mon("Enemy", ["normal"], [
+            move("blast", "normal", "special", 80),
         ])
         state = BattleState([player], [enemy])
         action = {"type": "move", "move_index": 0}
