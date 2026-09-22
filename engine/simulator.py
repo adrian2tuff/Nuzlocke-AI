@@ -332,6 +332,11 @@ def _apply_move_effect(
         attacker.volatile.add("protect")
         log.append(f"{attacker.display_name()} protected itself!")
         return
+    if eff == "trap":
+        if not target.is_fainted:
+            target.volatile.add("trapped")
+            log.append(f"{target.display_name()} was trapped and cannot switch out!")
+        return
     if eff == "hazard_removal":
         if field is not None and attacker_side is not None:
             hazards = field.hazards[attacker_side]
