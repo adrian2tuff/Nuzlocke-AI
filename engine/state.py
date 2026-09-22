@@ -95,9 +95,12 @@ class BattleState:
                             continue
                         actions.append({"type": "move", "move_index": i})
 
-        for i, p in enumerate(team):
-            if i != self.active_index(side) and not p.is_fainted:
-                actions.append({"type": "switch", "target_index": i})
+        # Trapping effects such as Mean Look prevent a voluntary switch.
+        # A fainted active still gets forced-switch actions above.
+        if "trapped" not in mon.volatile:
+            for i, p in enumerate(team):
+                if i != self.active_index(side) and not p.is_fainted:
+                    actions.append({"type": "switch", "target_index": i})
 
         return actions
 
