@@ -120,13 +120,14 @@ def _quick_action_heuristic(state: BattleState, side: str, action: dict) -> floa
         entry_fraction = 0.0
         hazards = state.field.hazards[side]
 
-        if hazards["stealth_rock"] and "flying" not in target.species.types:
+        if hazards["stealth_rock"]:
             mult = type_effectiveness("rock", target.species.types)
             entry_fraction += 0.125 * mult
 
         grounded = "flying" not in target.species.types and target.ability != "levitate"
         if grounded:
-            entry_fraction += 0.0625 * hazards["spikes"]
+            spike_damage = {1: 1 / 8, 2: 1 / 6, 3: 1 / 4}
+            entry_fraction += spike_damage.get(hazards["spikes"], 0.0)
             if hazards["toxic_spikes"] and target.status is None:
                 entry_fraction += 0.08
 
