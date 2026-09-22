@@ -114,5 +114,53 @@ class TestAbilities(unittest.TestCase):
             )
 
 
+    def test_choice_specs_boosts_special_damage(self):
+        state = fresh_state()
+        attacker = state.enemy_team[1]
+        defender = state.player_team[1]
+        move = DataStore().build_move("flamethrower")
+
+        attacker.item = None
+        normal = max(damage_rolls(attacker, defender, move, state.field))
+
+        attacker.item = "choice-specs"
+        boosted = max(damage_rolls(attacker, defender, move, state.field))
+        self.assertGreater(boosted, normal)
+
+    def test_choice_specs_locks_move_until_switch(self):
+        state = fresh_state()
+        state.enemy_active = 1
+        enemy = state.enemy_mon
+
+        initial = state.legal_actions("enemy")
+        self.assertEqual([a["move_index"] for a in initial if a["type"] == "move"], [0, 1, 2, 3])
+
+        result = step(
+            state,
+            {"type": "switch", "target_index": 0},
+            {"type": "move", "move_index": 0},
+            __import__("random").Random(1),
+        )
+        self.assertEqual(result.enemy_mon.choice_lock, 0)
+
+        locked = result.legal_actions("enemy")
+        self.assertEqual(
+            [a["move_index"] for a in locked if a["type"] == "move"],
+            [0],
+        )
+
+        switched = step(
+            result,
+            {"type": "switch", "target_index": 1},
+            {"type": "switch", "target_index": 0},
+            __import__("random").Random(1),
+        )
+        self.assertIsNone(switched.enemy_mon.choice_lock)
+        self.assertEqual(
+            {a["move_index"] for a in switched.legal_actions("enemy") if a["type"] == "move"},
+            {0, 1, 2, 3},
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
