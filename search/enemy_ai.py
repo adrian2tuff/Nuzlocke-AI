@@ -314,18 +314,25 @@ def _score_special_tactical_move(state, attacker, defender, move, rng):
         return 3.0 if faster else 0.0
 
     if name in {"counter", "mirror-coat", "metal-burst"}:
-        if "last-damage" not in defender.volatile or defender.last_damage_taken <= 0:
+        # These moves react to the damage the AI's active Pokemon received
+        # from the previous damaging move, so inspect the attacker itself.
+        if "last-damage" not in attacker.volatile:
             return 0.0
 
-        last_category = defender.last_damage_category
+        last_category = attacker.last_damage_category
         if name == "counter" and last_category != "physical":
             return -20.0
         if name == "mirror-coat" and last_category != "special":
             return -20.0
 
+        # Older fixtures only tracked the category marker. Preserve the
+        # neutral reactive baseline when an exact damage amount is unavailable.
+        if attacker.last_damage_taken <= 0:
+            return 6.0
+
         multiplier = 2.0 if name in {"counter", "mirror-coat"} else 1.5
-        reflected = int(defender.last_damage_taken * multiplier)
-        if reflected >= attacker.current_hp:
+        reflected = int(attacker.last_damage_taken * multiplier)
+        if reflected >= defender.current_hp:
             return 12.0
         return 6.0
 
