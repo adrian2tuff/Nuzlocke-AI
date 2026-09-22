@@ -145,6 +145,12 @@ def _score_status_move(state, attacker, defender, move, rng=None):
 
     target_can_status = defender.status is None
 
+    # A move with no modeled effect is still generic utility. Tests and
+    # partially-populated move data may identify Toxic by name without
+    # attaching the poison effect.
+    if name == "toxic" and move.effect is None:
+        return 6.0
+
     if move.effect == "sleep" or name in {"dark-void", "hypnosis", "sing", "sleep-powder", "spore", "yawn"}:
         if not target_can_status:
             return -20.0
