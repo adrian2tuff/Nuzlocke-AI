@@ -1,3 +1,4 @@
+import random
 import unittest
 
 from engine.pokemon import Move, Pokemon, Species
@@ -60,6 +61,52 @@ class TestEnemyPolicy(unittest.TestCase):
         state = BattleState([player], [enemy])
         action = {"type": "move", "move_index": 0}
         self.assertEqual(score_enemy_move(state, action), 6.0)
+
+    def test_faster_ohko_gets_fourteen(self):
+        player = make_mon("Player", ["grass"], [
+            move("tackle", "normal", "physical", 40),
+        ])
+        enemy = make_mon("Enemy", ["fire"], [
+            move("blast", "fire", "special", 500),
+        ])
+        state = BattleState([player], [enemy])
+        action = {"type": "move", "move_index": 0}
+        self.assertEqual(score_enemy_move(state, action), 14.0)
+
+    def test_slower_ohko_gets_twelve(self):
+        player = make_mon("Player", ["grass"], [
+            move("tackle", "normal", "physical", 500),
+        ])
+        enemy = make_mon("Enemy", ["fire"], [
+            move("blast", "fire", "special", 500),
+        ])
+        enemy.stat_stages["spe"] = -6
+        state = BattleState([player], [enemy])
+        action = {"type": "move", "move_index": 0}
+        self.assertEqual(score_enemy_move(state, action), 12.0)
+
+    def test_faster_two_hko_gets_eleven(self):
+        player = make_mon("Player", ["grass"], [
+            move("tackle", "normal", "physical", 40),
+        ])
+        enemy = make_mon("Enemy", ["fire"], [
+            move("ember", "fire", "special", 40),
+        ])
+        player.current_hp = max(1, player.max_hp // 2 + 1)
+        state = BattleState([player], [enemy])
+        action = {"type": "move", "move_index": 0}
+        self.assertEqual(score_enemy_move(state, action), 11.0)
+
+    def test_high_damage_move_can_get_eight(self):
+        player = make_mon("Player", ["grass"], [
+            move("tackle", "normal", "physical", 40),
+        ])
+        enemy = make_mon("Enemy", ["fire"], [
+            move("blast", "fire", "special", 80),
+        ])
+        state = BattleState([player], [enemy])
+        action = {"type": "move", "move_index": 0}
+        self.assertEqual(score_enemy_move(state, action, rng=random.Random(1)), 8.0)
 
 
 if __name__ == "__main__":
