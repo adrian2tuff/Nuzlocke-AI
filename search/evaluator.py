@@ -1,74 +1,175 @@
-"""
-Hand-written evaluation function -- this is item #17 from the plan: build a
-non-neural baseline before touching any ML. No training, no learning, just
-"how good does this position look" using the same kind of features the plan
-called out (team survival, HP remaining, alive count) -- PLUS, as of Phase 3,
-how much each Pokemon's survival actually matters (see replaceability.py).
-That last part is the direct answer to "sack Bidoof, not Garchomp": losing a
-redundant Pokemon barely moves this score; losing the team's only special
-attacker/only recovery/only answer to some type does.
+"""Nuzlocke-aware position evaluator.
 
-This is intentionally simple and easy to argue with -- tune the weights
-once you see how it plays, rather than trusting it blindly.
+The simulator answers "what happens?" and the search answers "what can I
+expect if both sides act?" This module answers the remaining question:
+"how valuable is the resulting position for a Nuzlocke?"
+
+The evaluator is deliberately decomposed into interpretable components rather
+than one opaque heuristic. Each component is normalized before its weight is
+applied.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from engine.state import BattleState
+from engine.mechanics import type_effectiveness
 from search.replaceability import compute_replaceability
 
-# Tunable weights. alive_weight >> hp_weight because in a Nuzlocke, a
-# fainted Pokemon is categorically worse than a damaged one -- losing a
-# nearly-full-health Pokemon is still infinitely worse than chip damage.
-ALIVE_WEIGHT = 1.0
-HP_WEIGHT = 0.5
-STATUS_PENALTY = 0.1
 
-# How much irreplaceability can amplify a Pokemon's contribution to the
-# score. At IRREPLACEABLE_BONUS=1.0, a fully-irreplaceable mon (score 0.0)
-# counts for roughly double a fully-redundant one (score 1.0) -- tune this
-# once you've watched it make a few real sack/no-sack calls.
-IRREPLACEABLE_BONUS = 1.0
+ALIVE_WEIGHT = 0.34
+HP_WEIGHT = 0.24
+REPLACEABILITY_WEIGHT = 0.18
+STATUS_WEIGHT = 0.08
+ACTIVE_MATCHUP_WEIGHT = 0.16
+
+STATUS_VALUES = {
+    "burn": 0.50,
+    "poison": 0.55,
+    "toxic": 0.75,
+    "paralysis": 0.70,
+    "sleep": 0.85,
+    "freeze": 0.90,
+}
 
 
-def _side_score(state: BattleState, side: str) -> float:
+@dataclass(frozen=True)
+class EvaluationBreakdown:
+    """Human-readable normalized components of a position evaluation."""
+    alive: float
+    hp: float
+    replaceability: float
+    status: float
+    active_matchup: float
+    total: float
+
+
+def _ratio_advantage(my_value: float, their_value: float) -> float:
+    total = my_value + their_value
+    if total <= 0:
+        return 0.0
+    return (my_value - their_value) / total
+
+
+def _alive_score(state: BattleState, side: str) -> float:
     team = state.side_team(side)
+    return sum(not mon.is_fainted for mon in team) / len(team) if team else 0.0
+
+
+def _hp_score(state: BattleState, side: str) -> float:
+    team = state.side_team(side)
+    return sum(mon.hp_fraction for mon in team) / len(team) if team else 0.0
+
+
+def _replaceability_score(state: BattleState, side: str) -> float:
+    team = state.side_team(side)
+    if not team:
+        return 0.0
+
     replaceability = compute_replaceability(team)
-    score = 0.0
+    contributions = []
     for i, mon in enumerate(team):
         if mon.is_fainted:
-            continue
-        irreplaceability = 1.0 - replaceability.get(i, 0.5)
-        importance = 1.0 + IRREPLACEABLE_BONUS * irreplaceability
-        score += ALIVE_WEIGHT * importance
-        score += HP_WEIGHT * mon.hp_fraction * importance
-        if mon.status is not None:
-            score -= STATUS_PENALTY
-    return score
+            contributions.append(0.0)
+        else:
+            contributions.append(1.0 - replaceability.get(i, 0.5))
+    return sum(contributions) / len(team)
+
+
+def _status_score(state: BattleState, side: str) -> float:
+    team = state.side_team(side)
+    if not team:
+        return 0.0
+
+    penalty = sum(
+        STATUS_VALUES.get(mon.status, 0.0)
+        for mon in team
+        if not mon.is_fainted
+    )
+    return 1.0 - penalty / len(team)
+
+
+def _active_matchup_score(state: BattleState, side: str) -> float:
+    """Position-only typing/coverage/speed signal; damage stays in simulator."""
+    other = state.other_side(side)
+    mine = state.active_mon(side)
+    theirs = state.active_mon(other)
+
+    if mine.is_fainted:
+        return -1.0
+    if theirs.is_fainted:
+        return 1.0
+
+    my_best = 1.0
+    for move in mine.moves:
+        if move.category != "status" and move.power > 0:
+            my_best = max(
+                my_best,
+                type_effectiveness(move.type, theirs.species.types),
+            )
+
+    their_best = 1.0
+    for move in theirs.moves:
+        if move.category != "status" and move.power > 0:
+            their_best = max(
+                their_best,
+                type_effectiveness(move.type, mine.species.types),
+            )
+
+    my_speed = mine.effective_stat("spe")
+    their_speed = theirs.effective_stat("spe")
+    speed_edge = 0.15 if my_speed > their_speed else -0.15 if my_speed < their_speed else 0.0
+    type_edge = (my_best - their_best) / 2.0
+    return max(-1.0, min(1.0, type_edge + speed_edge))
+
+
+def evaluate_breakdown(state: BattleState, watch: str = "player") -> EvaluationBreakdown:
+    """Return each normalized feature and the resulting weighted score."""
+    other = state.other_side(watch)
+
+    alive = _ratio_advantage(_alive_score(state, watch), _alive_score(state, other))
+    hp = _ratio_advantage(_hp_score(state, watch), _hp_score(state, other))
+    replaceability = _ratio_advantage(
+        _replaceability_score(state, watch),
+        _replaceability_score(state, other),
+    )
+    status = _ratio_advantage(
+        _status_score(state, watch),
+        _status_score(state, other),
+    )
+    active_matchup = _active_matchup_score(state, watch)
+
+    total = (
+        ALIVE_WEIGHT * alive
+        + HP_WEIGHT * hp
+        + REPLACEABILITY_WEIGHT * replaceability
+        + STATUS_WEIGHT * status
+        + ACTIVE_MATCHUP_WEIGHT * active_matchup
+    )
+
+    return EvaluationBreakdown(
+        alive=alive,
+        hp=hp,
+        replaceability=replaceability,
+        status=status,
+        active_matchup=active_matchup,
+        total=max(-1.0, min(1.0, total)),
+    )
 
 
 def evaluate(state: BattleState, watch: str = "player") -> float:
-    """
-    Returns a score in [-1, 1] from `watch`'s perspective:
-      +1.0  = watch's opponent is fully wiped, watch is not
-      -1.0  = watch is fully wiped
-       0.0  = perfectly even position
-    Anything in between is relative team health/count advantage.
-    """
+    """Return a Nuzlocke-aware score in [-1, 1]."""
     other = state.other_side(watch)
 
     watch_wiped = state.team_wiped(watch)
     other_wiped = state.team_wiped(other)
+
     if watch_wiped and other_wiped:
-        return -0.5  # a double-wipe is still very bad for a Nuzlocke run, not neutral
+        return -0.5
     if watch_wiped:
         return -1.0
     if other_wiped:
         return 1.0
 
-    my_score = _side_score(state, watch)
-    their_score = _side_score(state, other)
-    total = my_score + their_score
-    if total <= 0:
-        return 0.0
-    return (my_score - their_score) / total
+    return evaluate_breakdown(state, watch).total
