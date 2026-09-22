@@ -109,7 +109,8 @@ def resolve_move(
     in Phase 2 testing), and keeping them separate here is what keeps that
     bug from coming back."""
 
-    move.pp = max(0, move.pp - 1)
+    pp_cost = 2 if defender.ability == "pressure" and move.effect_data.get("target") != "self" else 1
+    move.pp = max(0, move.pp - pp_cost)
 
     if attacker.is_fainted:
         return
@@ -220,14 +221,6 @@ def resolve_move(
                 log.append(f"{attacker.display_name()} fainted!")
                 break
 
-        if attacker.item == "life-orb" and dmg > 0:
-            life_damage = max(1, attacker.max_hp // 10)
-            attacker.current_hp = max(0, attacker.current_hp - life_damage)
-            log.append(f"{attacker.display_name()} lost HP from Life Orb! (-{life_damage} HP)")
-            if attacker.is_fainted:
-                log.append(f"{attacker.display_name()} fainted!")
-                break
-
         log.append(
             f"{attacker.display_name()} used {move.name}! "
             f"{'A critical hit! ' if is_crit else ''}"
@@ -240,8 +233,27 @@ def resolve_move(
             break
 
         # Per-hit secondary effects can trigger independently.
-        if move.effect and (force_effect if force_effect is not None else rng.random() * 100 < move.effect_chance):
+        sheer_force = (
+            attacker.ability == "sheer-force"
+            and move.category != "status"
+            and move.effect is not None
+            and move.effect_chance > 0
+        )
+        if move.effect and not sheer_force and (force_effect if force_effect is not None else rng.random() * 100 < move.effect_chance):
             _apply_move_effect(move, attacker, defender, log, damage_dealt=dmg, rng=rng)
+
+    sheer_force = (
+        attacker.ability == "sheer-force"
+        and move.category != "status"
+        and move.effect is not None
+        and move.effect_chance > 0
+    )
+    if attacker.item == "life-orb" and total_damage > 0 and not sheer_force:
+        life_damage = max(1, attacker.max_hp // 10)
+        attacker.current_hp = max(0, attacker.current_hp - life_damage)
+        log.append(f"{attacker.display_name()} lost HP from Life Orb! (-{life_damage} HP)")
+        if attacker.is_fainted:
+            log.append(f"{attacker.display_name()} fainted!")
 
     return
 
@@ -465,6 +477,13 @@ def _apply_end_of_turn_field(state: BattleState, log) -> None:
                 damage = max(1, mon.max_hp // 16)
                 mon.current_hp = max(0, mon.current_hp - damage)
                 log.append(f"{mon.display_name()} was hurt by {field.weather}! (-{damage} HP)")
+
+    if field.weather == "sun":
+        for mon in (state.player_mon, state.enemy_mon):
+            if not mon.is_fainted and mon.ability == "solar-power":
+                damage = max(1, mon.max_hp // 8)
+                mon.current_hp = max(0, mon.current_hp - damage)
+                log.append(f"{mon.display_name()} was hurt by Solar Power! (-{damage} HP)")
 
     if field.terrain == "grassy":
         for mon in (state.player_mon, state.enemy_mon):
