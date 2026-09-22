@@ -216,6 +216,54 @@ def _score_recovery_move(state, attacker, defender, move, rng):
         return 1.0 if _random_chance(rng, 0.75) else 0.0
     return -1.0
 
+
+PHASING_MOVES = {"roar", "whirlwind", "dragon-tail", "circle-throw"}
+
+def _score_phazing_move(state, attacker, defender, move, side, rng):
+    name = _move_name(move)
+    if name not in PHASING_MOVES:
+        return None
+    if name in {"dragon-tail", "circle-throw"}:
+        if "perish-song" in defender.volatile:
+            return -20.0
+        if _player_kill_hits(defender, attacker, state.field) == 1:
+            return -20.0
+        return 0.0
+    target_hazards = state.field.hazards[state.other_side(side)]
+    hazard_layers = (
+        int(bool(target_hazards.get("stealth_rock"))) +
+        int(target_hazards.get("spikes", 0)) +
+        int(target_hazards.get("toxic_spikes", 0)) +
+        int(bool(target_hazards.get("sticky_web")))
+    )
+    score = 1.0 if hazard_layers > 0 else 0.0
+    if _random_chance(rng, 0.50):
+        score -= 1.0
+    return score
+
+def _last_move_name(pokemon):
+    prefix = "last-move:"
+    for marker in pokemon.volatile:
+        if marker.startswith(prefix):
+            return marker[len(prefix):]
+    return None
+
+def _score_copy_move(state, attacker, defender, move, side, rng):
+    name = _move_name(move)
+    if name not in {"copycat", "mirror-move", "me-first"}:
+        return None
+    copied_name = _last_move_name(defender)
+    if copied_name is None or copied_name in {"copycat", "mirror-move", "me-first"}:
+        return 0.0
+    copied = next((m for m in defender.moves if _move_name(m) == copied_name), None)
+    if copied is None:
+        return 0.0
+    clone = state.clone()
+    clone_attacker = clone.active_mon(side)
+    clone_attacker.moves.append(copied)
+    copied_index = len(clone_attacker.moves) - 1
+    return score_enemy_move(clone, {"type": "move", "move_index": copied_index}, side=side, rng=rng)
+
 PIVOT_MOVES = {"u-turn", "volt-switch", "flip-turn", "parting-shot"}
 
 def _has_phazing_move(pokemon):
@@ -870,6 +918,14 @@ def score_enemy_move(state, action, *, side="enemy", rng=None):
     tactical_score = _score_special_tactical_move(state, mon, opponent, move, rng)
     if tactical_score is not None:
         return tactical_score
+
+    copy_score = _score_copy_move(state, mon, opponent, move, side, rng)
+    if copy_score is not None:
+        return copy_score
+
+    phazing_score = _score_phazing_move(state, mon, opponent, move, side, rng)
+    if phazing_score is not None:
+        return phazing_score
     special_utility_score = _score_special_utility_move(state, mon, opponent, move)
     if special_utility_score is not None:
         return special_utility_score
