@@ -50,6 +50,8 @@ def damage_rolls(
     def_stat = "def" if move.category == "physical" else "spd"
 
     atk = attacker.effective_stat(atk_stat)
+    if attacker.ability == "solar-power" and atk_stat == "spa" and field.weather == "sun":
+        atk *= 1.5
     # Crits ignore the attacker's negative stage / defender's positive stage (Gen 6+ rule),
     # simplified here to: crit uses the higher of (stage-adjusted, base) stat on each side.
     if is_crit:
@@ -64,6 +66,14 @@ def damage_rolls(
     base = (((2 * level / 5 + 2) * power * atk / max(defense, 1)) / 50) + 2
 
     modifier = 1.0
+    sheer_force = (
+        attacker.ability == "sheer-force"
+        and move.category != "status"
+        and move.effect is not None
+        and move.effect_chance > 0
+    )
+    if sheer_force:
+        modifier *= 1.3
     if is_stab(move, attacker):
         modifier *= STAB_MULTIPLIER
     if is_crit:
