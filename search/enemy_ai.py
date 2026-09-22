@@ -92,7 +92,10 @@ def switch_in_score(state, candidate_index, *, side="enemy", rng=None, immediate
     candidate_ohko = candidate_damage >= target.current_hp
     target_ohko = target_damage >= candidate.current_hp
 
-    if candidate_ohko and faster:
+    # Defensive OHKO penalty takes precedence for a slower candidate.
+    if target_ohko and not faster:
+        score = -1
+    elif candidate_ohko and faster:
         score = 5
     elif candidate_ohko:
         score = 4
@@ -102,8 +105,6 @@ def switch_in_score(state, candidate_index, *, side="enemy", rng=None, immediate
         score = 2
     elif faster:
         score = 1
-    elif target_ohko:
-        score = -1
     else:
         score = 0
 
