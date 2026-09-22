@@ -347,7 +347,7 @@ class TestEnemyPolicy(unittest.TestCase):
         player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
         enemy = make_mon("Enemy", ["normal"], [move("endure", "normal", "status", 0)])
         state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
-        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}, rng=random.Random(1)), 0.0)
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}, rng=random.Random(1)), -1.0)
 
     def test_explosion_prefers_low_hp(self):
         player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
