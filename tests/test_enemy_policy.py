@@ -293,6 +293,49 @@ class TestEnemyPolicy(unittest.TestCase):
         state = BattleState([player, make_mon("Bench", ["normal"], [])], [enemy])
         self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}, rng=random.Random(1)), 2.0)
 
+
+    def test_explosion_prefers_low_hp(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [move("explosion", "normal", "physical", 250)])
+        enemy.current_hp = 5
+        state = BattleState([player, make_mon("Bench", ["normal"], [])], [enemy])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 10.0)
+
+    def test_explosion_is_bad_if_last_mon(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [move("explosion", "normal", "physical", 250)])
+        state = BattleState([player, make_mon("Bench", ["normal"], [])], [enemy])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), -10.0)
+
+    def test_explosion_last_mon_can_be_used_if_player_is_also_last(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [move("explosion", "normal", "physical", 250)])
+        state = BattleState([player], [enemy])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), -1.0)
+
+    def test_memento_is_useless_when_both_stats_cannot_drop(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["dark"], [move("memento", "dark", "status", 0)])
+        enemy.moves[0].effect = "stat_change"
+        enemy.moves[0].effect_data = {"stat": "atk", "stages": -2}
+        player.stat_stages["atk"] = -6
+        player.stat_stages["spa"] = -6
+        state = BattleState([player, make_mon("Bench", ["normal"], [])], [enemy])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), -20.0)
+
+    def test_final_gambit_rewards_fast_equal_hp(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [move("final-gambit", "fighting", "special", 0)])
+        state = BattleState([player], [enemy])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 8.0)
+
+    def test_final_gambit_gets_seven_when_fast_and_will_die(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 500)])
+        enemy = make_mon("Enemy", ["normal"], [move("final-gambit", "fighting", "special", 0)])
+        enemy.stat_stages["spe"] = -6
+        state = BattleState([player, make_mon("Bench", ["normal"], [])], [enemy])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 7.0)
+
 if __name__ == "__main__":
     unittest.main()
 
