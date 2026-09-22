@@ -314,12 +314,19 @@ def _score_special_tactical_move(state, attacker, defender, move, rng):
         return 3.0 if faster else 0.0
 
     if name in {"counter", "mirror-coat", "metal-burst"}:
-        if "last-damage" not in defender.volatile:
+        if "last-damage" not in defender.volatile or defender.last_damage_taken <= 0:
             return 0.0
-        if name == "counter" and "last-physical" not in defender.volatile:
+
+        last_category = defender.last_damage_category
+        if name == "counter" and last_category != "physical":
             return -20.0
-        if name == "mirror-coat" and "last-special" not in defender.volatile:
+        if name == "mirror-coat" and last_category != "special":
             return -20.0
+
+        multiplier = 2.0 if name in {"counter", "mirror-coat"} else 1.5
+        reflected = int(defender.last_damage_taken * multiplier)
+        if reflected >= attacker.current_hp:
+            return 12.0
         return 6.0
 
 UTILITY_EDGE_MOVES = {"taunt", "encore", "disable", "substitute", "destiny-bond"}
