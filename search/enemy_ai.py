@@ -276,7 +276,9 @@ def _score_pivot_move(state, attacker, defender, move, rng):
             has_boost = any(v > 0 for v in attacker.stat_stages.values())
             if not has_boost:
                 return -20.0
-        return -1.0 if _random_chance(rng, 0.25) else 0.0
+        has_boost = any(v > 0 for v in attacker.stat_stages.values())
+        return (1.0 if has_boost else 0.0) if not _random_chance(rng, 0.25) else -1.0
+
 
     if name not in PIVOT_MOVES:
         return None
@@ -383,6 +385,62 @@ def _score_special_tactical_move(state, attacker, defender, move, rng):
         if reflected >= defender.current_hp:
             return 12.0
         return 6.0
+
+
+UTILITY_ADVANCED_MOVES = {
+    "conversion", "conversion-2", "laser-focus", "focus-energy",
+    "snore", "sleep-talk",
+}
+
+def _score_advanced_utility_move(state, attacker, defender, move, rng):
+    name = _move_name(move)
+    if name not in UTILITY_ADVANCED_MOVES:
+        return None
+
+    if name in {"snore", "sleep-talk"}:
+        if attacker.status != "sleep":
+            return -20.0
+        # Snore/Sleep Talk are strongly preferred while asleep, except on
+        # the turn the user is expected to wake.
+        if attacker.status_turns > 0 and attacker.status_turns <= 1:
+            return 0.0
+        return 15.0
+
+    if name == "laser-focus":
+        if attacker.ability.lower().replace(" ", "-") == "sniper":
+            return 1.0
+        if "crit-immune" in defender.volatile:
+            return -20.0
+        return 6.0
+
+    if name == "focus-energy":
+        if "crit-immune" in defender.volatile:
+            return -20.0
+        if (attacker.ability.lower().replace(" ", "-") in {"sniper", "super-luck"}
+                or attacker.item == "scope-lens"
+                or any(m.crit_ratio > 0 for m in attacker.moves)):
+            return 1.0
+        return 6.0
+
+    if name == "conversion":
+        # Conversion changes type based on the user's first move.
+        current = attacker.species.types[0] if attacker.species.types else None
+        move_types = [m.type for m in attacker.moves if m.category != "status" and m.power > 0]
+        if not move_types or current in move_types:
+            return -20.0
+        return 2.0
+
+    if name == "conversion-2":
+        last_type = defender.volatile
+        # The simulator records the last move name, not its type. When the
+        # type is unavailable, keep the documented neutral utility baseline.
+        if "last-move-type-resistant" in last_type or "last-move-type-immune" in last_type:
+            return -20.0
+        if _best_damage(defender, attacker, state.field) >= attacker.current_hp:
+            return 1.0
+        return 0.0
+
+    return None
 
 UTILITY_EDGE_MOVES = {"taunt", "encore", "disable", "substitute", "destiny-bond"}
 
@@ -922,6 +980,10 @@ def score_enemy_move(state, action, *, side="enemy", rng=None):
     copy_score = _score_copy_move(state, mon, opponent, move, side, rng)
     if copy_score is not None:
         return copy_score
+
+    advanced_utility_score = _score_advanced_utility_move(state, mon, opponent, move, rng)
+    if advanced_utility_score is not None:
+        return advanced_utility_score
 
     phazing_score = _score_phazing_move(state, mon, opponent, move, side, rng)
     if phazing_score is not None:
