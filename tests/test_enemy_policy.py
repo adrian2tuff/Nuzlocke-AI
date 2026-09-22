@@ -295,3 +295,44 @@ class TestEnemyPolicy(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+    def test_sticky_web_is_set_on_field(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["bug"], [move("sticky-web", "bug", "status", 0)])
+        enemy.moves[0].effect = "sticky_web"
+        state = BattleState([player], [enemy])
+        from engine.simulator import step
+        next_state = step(state, {"type": "move", "move_index": 0}, {"type": "move", "move_index": 0}, rng=random.Random(1))
+        self.assertTrue(next_state.field.hazards["player"]["sticky_web"])
+
+    def test_sticky_web_lowers_grounded_switch_in_speed(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["bug"], [move("sticky-web", "bug", "status", 0)])
+        enemy.moves[0].effect = "sticky_web"
+        state = BattleState([player, make_mon("Bench", ["normal"], [])], [enemy])
+        state.field.hazards["player"]["sticky_web"] = True
+        from engine.simulator import step
+        next_state = step(state, {"type": "switch", "target_index": 1}, {"type": "move", "move_index": 0}, rng=random.Random(1))
+        self.assertEqual(next_state.player_mon.stat_stages["spe"], -1)
+
+    def test_sticky_web_does_not_affect_flying_switch_in(self):
+        player = make_mon("Player", ["flying"], [move("tackle", "normal", "physical", 40)])
+        bench = make_mon("Bench", ["flying"], [])
+        enemy = make_mon("Enemy", ["bug"], [move("sticky-web", "bug", "status", 0)])
+        enemy.moves[0].effect = "sticky_web"
+        state = BattleState([player, bench], [enemy])
+        state.field.hazards["player"]["sticky_web"] = True
+        from engine.simulator import step
+        next_state = step(state, {"type": "switch", "target_index": 1}, {"type": "move", "move_index": 0}, rng=random.Random(1))
+        self.assertEqual(next_state.player_mon.stat_stages["spe"], 0)
+
+    def test_hazard_removal_clears_sticky_web(self):
+        player = make_mon("Player", ["normal"], [move("rapid-spin", "normal", "physical", 50)])
+        enemy = make_mon("Enemy", ["normal"], [move("tackle", "normal", "physical", 40)])
+        player.moves[0].effect = "hazard_removal"
+        state = BattleState([player], [enemy])
+        state.field.hazards["player"]["sticky_web"] = True
+        from engine.simulator import step
+        next_state = step(state, {"type": "move", "move_index": 0}, {"type": "move", "move_index": 0}, rng=random.Random(1))
+        self.assertFalse(next_state.field.hazards["player"]["sticky_web"])
