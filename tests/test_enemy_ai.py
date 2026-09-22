@@ -55,7 +55,7 @@ class TestEnemyAI(unittest.TestCase):
         self.assertEqual(switch_in_score(state,1,rng=random.Random(0)),1)
 
     def test_slower_ohko_gets_minus_one(self):
-        player = make_mon("Player",["normal"],[attack("tackle","normal",200)])
+        player = make_mon("Player",["normal"],[attack("tackle","normal",500)])
         active = make_mon("Active",["water"],[attack("water-gun","water",40)])
         bench = make_mon("Bench",["fire"],[attack("ember","fire",40)])
         bench.stat_stages["spe"] = -6
