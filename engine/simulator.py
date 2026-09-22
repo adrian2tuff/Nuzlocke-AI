@@ -1037,6 +1037,28 @@ def enumerate_turn_outcomes(
                     attacker = s2.active_mon(second)
                     defender = s2.active_mon(s2.other_side(second))
                     move = attacker.moves[a2["move_index"]]
+                    if hits2 is not None and (move.hits_min != 1 or move.hits_max != 1) and move.category != "status":
+                        multi_states = _enumerate_multi_hit_move(
+                            s2, second, a2, hits2,
+                            damage_buckets=damage_buckets,
+                            include_descriptions=include_descriptions,
+                        )
+                        for multi_p, multi_state, multi_desc in multi_states:
+                            if not multi_state.is_terminal():
+                                endlog = []
+                                _apply_status_damage(multi_state.player_mon, endlog)
+                                _apply_status_damage(multi_state.enemy_mon, endlog)
+                                _apply_end_of_turn_field(multi_state, endlog)
+                                if endlog:
+                                    multi_desc = (multi_desc + "; " if multi_desc else "") + "; ".join(endlog)
+                            multi_state.turn += 1
+                            outs.append(Outcome(
+                                order_weight * p1 * p2 * multi_p,
+                                multi_state,
+                                multi_desc if include_descriptions else "",
+                            ))
+                        continue
+
                     resolve_move(
                         attacker, defender, move, s2.field,
                         rng=_ENUM_RNG, log=log2,
