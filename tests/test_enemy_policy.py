@@ -492,6 +492,7 @@ class TestEnemyPolicy(unittest.TestCase):
 
     def test_sucker_punch_rewards_slow_ko(self):
         player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        player.current_hp = player.max_hp
         enemy = make_mon("Enemy", ["normal"], [move("sucker-punch", "dark", "physical", 1000)])
         enemy.stat_stages["spe"] = -6
         state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
