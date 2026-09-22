@@ -112,6 +112,10 @@ def resolve_move(
     pp_cost = 2 if defender.ability == "pressure" and move.effect_data.get("target") != "self" else 1
     move.pp = max(0, move.pp - pp_cost)
 
+    # Choice items lock onto the selected move until the Pokemon switches.
+    if attacker.item in ("choice-band", "choice-specs", "choice-scarf") and attacker.choice_lock is None and move.category != "status":
+        attacker.choice_lock = attacker.moves.index(move)
+
     if attacker.is_fainted:
         return
 
@@ -416,6 +420,7 @@ def _apply_switch(state: BattleState, side: str, target_index: int, log: list[st
     outgoing.stat_stages = {k: 0 for k in outgoing.stat_stages}
     outgoing.volatile = set()
     outgoing.protect_streak = 0
+    outgoing.choice_lock = None
 
     state.set_active_index(side, target_index)
     log.append(f"{'You' if side == 'player' else 'Opponent'} sent out {incoming.display_name()}!")
