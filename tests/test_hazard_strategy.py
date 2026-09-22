@@ -112,18 +112,22 @@ class TestHazardStrategy(unittest.TestCase):
         )
 
     def test_stealth_rock_has_no_value_when_opponent_has_no_living_switch_ins(self):
+        from search.evaluator import _hazard_pressure_score
+
         setter = make_mon("Setter", ["normal"], [])
         enemy = make_mon("Enemy", ["flying"], [])
         fainted_switch = make_mon("Fainted", ["fire"], [])
-        fainted_switch.hp = 0
+        fainted_switch.current_hp = 0
 
         state = BattleState(
             player_team=[setter],
             enemy_team=[enemy, fainted_switch],
         )
-        baseline = evaluate_breakdown(state).hazards
+
+        baseline = _hazard_pressure_score(state, "player")
+
         state.field.hazards["enemy"]["stealth_rock"] = True
-        pressured = evaluate_breakdown(state).hazards
+        pressured = _hazard_pressure_score(state, "player")
 
         self.assertEqual(pressured, baseline)
 
