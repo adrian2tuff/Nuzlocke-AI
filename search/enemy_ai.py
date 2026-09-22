@@ -285,16 +285,16 @@ def _score_setup_move(state, mon, player, move, rng):
     if name == "charge":
         if _player_kill_hits(player, mon, state.field) == 1 or _player_has_phazing(player):
             return -20.0
-        return 1.0 if _has_move_named(mon, {"thunderbolt", "thunder", "discharge", "parabolic-charge", "electro-shot"}) else 0.0
+        return 1.0 if any(m.category != "status" and m.power > 0 and m.type == "electric" for m in mon.moves) else 0.0
 
     if name == "defense-curl":
         if _has_move_named(mon, {"rollout", "ice-ball"}) and "defense-curled" not in mon.volatile:
-            return 7.0
+            return 1.0
         return _score_defensive_setup(state, mon, player, move, rng)
 
     if name == "stockpile":
         if _has_move_named(mon, {"spit-up", "swallow"}):
-            return 7.0
+            return 1.0
         return _score_defensive_setup(state, mon, player, move, rng)
 
     if name == "fell-stinger":
