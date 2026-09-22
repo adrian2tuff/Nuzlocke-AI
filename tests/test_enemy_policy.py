@@ -676,7 +676,7 @@ class TestEnemyPolicy(unittest.TestCase):
 
     def test_speed_lowering_rewards_being_slower(self):
         player = make_mon("Fast", ["normal"], [move("tackle", "normal", "physical", 40)])
-        enemy = make_mon("Slow", ["normal"], [move("rock-tomb", "rock", "physical", 60)])
+        enemy = make_mon("Slow", ["normal"], [move("rock-tomb", "rock", "status", 0)])
         enemy.moves[0].effect = "stat_change"
         enemy.moves[0].effect_data = {"stat": "spe", "stages": -1}
         enemy.stat_stages["spe"] = -6
