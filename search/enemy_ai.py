@@ -250,6 +250,60 @@ def _score_pivot_move(state, attacker, defender, move, rng):
 
     return 6.0
 
+UTILITY_EDGE_MOVES = {"taunt", "encore", "disable", "substitute", "destiny-bond"}
+
+def _player_has_status_move(pokemon):
+    return any(m.category == "status" for m in pokemon.moves)
+
+def _score_utility_edge_move(state, attacker, defender, move, rng):
+    name = _move_name(move)
+    if name not in UTILITY_EDGE_MOVES:
+        return None
+
+    if name == "taunt":
+        return 1.0 if _random_chance(rng, 0.50) and _player_has_status_move(defender) else -1.0
+
+    if name == "encore":
+        encouraged = (
+            "encore-target" in defender.volatile
+            or "last-status" in defender.volatile
+            or "last-fake-out" in defender.volatile
+            or "last-first-impression" in defender.volatile
+        )
+        if attacker.effective_stat("spe") >= defender.effective_stat("spe") and encouraged:
+            return 1.0
+        return 0.0
+
+    if name == "disable":
+        last_move_can_ko = "last-move-ko" in defender.volatile
+        if attacker.effective_stat("spe") >= defender.effective_stat("spe") and last_move_can_ko:
+            return 1.0
+        return 0.0
+
+    if name == "substitute":
+        if "sound" in defender.volatile or "infiltrator" in defender.volatile:
+            return -20.0
+        if "perish-song" in defender.volatile:
+            return 1.0
+        if defender.status in {"burn", "poison", "toxic", "frostbite"} and _random_chance(rng, 0.25):
+            return 1.0
+        if "wrapped" in defender.volatile and attacker.current_hp > attacker.max_hp * 0.70 and _random_chance(rng, 0.25):
+            return 1.0
+        if attacker.ability.lower().replace(" ", "-") == "speed-boost" and _random_chance(rng, 0.25):
+            return 1.0
+        return -1.0
+
+    if name == "destiny-bond":
+        if attacker.item in {"focus-sash", "focus-band"} or "disguise" in attacker.volatile:
+            return -20.0
+        player_can_faint = _player_kill_hits(defender, attacker, state.field) == 1
+        faster = attacker.effective_stat("spe") >= defender.effective_stat("spe")
+        if faster and player_can_faint and _random_chance(rng, 0.815):
+            return 1.0
+        if not faster and _random_chance(rng, 0.50):
+            return -1.0
+        return 0.0
+
 PROTECTION_MOVES = {"protect", "detect", "baneful-bunker", "kings-shield", "silk-trap", "obstruct", "spiky-shield", "burning-bulwark", "endure"}
 
 def _end_turn_damage_estimate(mon):
@@ -695,6 +749,10 @@ def score_enemy_move(state, action, *, side="enemy", rng=None):
     pivot_score = _score_pivot_move(state, mon, opponent, move, rng)
     if pivot_score is not None:
         return pivot_score
+
+    utility_edge_score = _score_utility_edge_move(state, mon, opponent, move, rng)
+    if utility_edge_score is not None:
+        return utility_edge_score
 
     protection_score = _score_protection_move(state, mon, opponent, move, rng)
     if protection_score is not None:
