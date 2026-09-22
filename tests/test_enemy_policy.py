@@ -133,5 +133,39 @@ class TestEnemyPolicy(unittest.TestCase):
         state = BattleState([player], [enemy])
         self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}, rng=random.Random(1)), 1.0)
 
+
+    def test_defense_curl_rollout_bonus_is_one(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [
+            move("defense-curl", "normal", "status", 0),
+            move("rollout", "rock", "physical", 30),
+        ])
+        enemy.moves[0].effect = "stat_change"
+        enemy.moves[0].effect_data = {"stat": "def", "stages": 1}
+        state = BattleState([player], [enemy])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}, rng=random.Random(1)), 1.0)
+
+    def test_stockpile_spit_up_bonus_is_one(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [
+            move("stockpile", "normal", "status", 0),
+            move("spit-up", "normal", "special", 100),
+        ])
+        enemy.moves[0].effect = "stat_change"
+        enemy.moves[0].effect_data = {"stat": "def", "stages": 1}
+        state = BattleState([player], [enemy])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}, rng=random.Random(1)), 1.0)
+
+    def test_charge_rewards_any_electric_attack(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["electric"], [
+            move("charge", "electric", "status", 0),
+            move("wild-charge", "electric", "physical", 90),
+        ])
+        enemy.moves[0].effect = "stat_change"
+        enemy.moves[0].effect_data = {"stat": "spa", "stages": 1}
+        state = BattleState([player], [enemy])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 1.0)
+
 if __name__ == "__main__":
     unittest.main()
