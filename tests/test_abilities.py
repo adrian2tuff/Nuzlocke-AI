@@ -64,7 +64,7 @@ class TestAbilities(unittest.TestCase):
 
         result = step(
             state,
-            {"type": "switch", "target_index": 2},
+            {"type": "move", "move_index": 3},
             {"type": "switch", "target_index": 1},
             __import__("random").Random(1),
         )
@@ -108,8 +108,8 @@ class TestAbilities(unittest.TestCase):
         expected_recoil = max(1, attacker.max_hp // 10)
         for outcome in outcomes:
             self.assertEqual(
-                before - outcome.state.player_mon.current_hp >= expected_recoil,
-                True,
+                outcome.state.player_mon.current_hp,
+                before - expected_recoil,
             )
 
 
