@@ -112,7 +112,7 @@ def resolve_move(
     pp_cost = 2 if defender.ability == "pressure" and move.effect_data.get("target") != "self" else 1
     move.pp = max(0, move.pp - pp_cost)
 
-    # Track the most recent damaging hit for Counter/Mirror Coat/Metal Burst.\n    # These markers persist until another damaging move replaces them, which\n    # lets the next actor evaluate the previous hit even across turn order.\n    attacker.volatile.discard("last-damage")\n    attacker.volatile.discard("last-physical")\n    attacker.volatile.discard("last-special")\n    attacker.volatile.discard("last-move")\n    attacker.volatile.add(f"last-move:{move.name.lower().replace(" ", "-")}")\n
+    # Track the most recent damaging hit for Counter/Mirror Coat/Metal Burst.\n    # These markers persist until another damaging move replaces them, which\n    # lets the next actor evaluate the previous hit even across turn order.\n    attacker.volatile.discard("last-damage")\n    attacker.volatile.discard("last-physical")\n    attacker.volatile.discard("last-special")\n    attacker.volatile.discard("last-move")\n    attacker.volatile.add("last-move:" + move.name.lower().replace(" ", "-"))\n
     # Choice items lock onto the selected move until the Pokemon switches.
     if attacker.item in ("choice-band", "choice-specs", "choice-scarf") and attacker.choice_lock is None and move.category != "status":
         attacker.choice_lock = attacker.moves.index(move)
