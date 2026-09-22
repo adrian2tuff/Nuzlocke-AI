@@ -726,3 +726,41 @@ if __name__ == "__main__":
         state.field.tailwind_turns["enemy"] = 4
         from engine.simulator import turn_order
         self.assertEqual(turn_order(state, {"type": "move", "move_index": 0}, {"type": "move", "move_index": 0}), ["enemy", "player"])
+
+
+    def test_roar_gets_hazard_bonus(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [move("roar", "normal", "status", 0)])
+        state = BattleState([player, make_mon("Bench", ["normal"], [])], [enemy])
+        state.field.hazards["player"]["stealth_rock"] = True
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}, rng=random.Random(0)), 0.0)
+
+    def test_dragon_tail_is_penalized_against_perish_song_target(self):
+        player = make_mon("Player", ["normal"], [move("dragon-tail", "dragon", "physical", 60)])
+        enemy = make_mon("Enemy", ["normal"], [move("tackle", "normal", "physical", 40)])
+        player.volatile.add("perish-song")
+        state = BattleState([player], [enemy])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), -20.0)
+
+    def test_dragon_tail_is_penalized_if_player_can_ko_ai(self):
+        player = make_mon("Player", ["normal"], [move("blast", "normal", "physical", 500)])
+        enemy = make_mon("Enemy", ["normal"], [move("dragon-tail", "dragon", "physical", 60)])
+        state = BattleState([player], [enemy])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), -20.0)
+
+    def test_copycat_reuses_last_move_score(self):
+        player = make_mon("Player", ["normal"], [
+            move("blast", "normal", "physical", 500),
+        ])
+        enemy = make_mon("Enemy", ["normal"], [
+            move("copycat", "normal", "status", 0),
+        ])
+        player.volatile.add("last-move:blast")
+        state = BattleState([player], [enemy])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 14.0)
+
+    def test_copycat_without_last_move_is_neutral(self):
+        player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 40)])
+        enemy = make_mon("Enemy", ["normal"], [move("copycat", "normal", "status", 0)])
+        state = BattleState([player], [enemy])
+        self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 0.0)
