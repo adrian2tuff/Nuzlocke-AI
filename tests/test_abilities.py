@@ -83,7 +83,7 @@ class TestAbilities(unittest.TestCase):
         result = step(
             state,
             {"type": "move", "move_index": 1},
-            {"type": "switch", "target_index": 1},
+            {"type": "move", "move_index": 0},
             __import__("random").Random(1),
         )
         self.assertEqual(result.player_mon.moves[1].pp, before - 2)
