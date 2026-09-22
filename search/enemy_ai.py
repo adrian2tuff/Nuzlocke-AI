@@ -167,6 +167,44 @@ def _score_self_destruct_move(state, attacker, defender, move, side, rng):
         return 7.0 if _random_chance(rng, 0.50) else 0.0
     return 7.0 if _random_chance(rng, 0.05) else 0.0
 
+PROTECTION_MOVES = {"protect", "detect", "baneful-bunker", "kings-shield", "silk-trap", "obstruct", "spiky-shield", "burning-bulwark", "endure"}
+
+def _end_turn_damage_estimate(mon):
+    if mon.status == "toxic":
+        return max(1, (mon.max_hp * (mon.status_turns + 1)) // 16)
+    if mon.status == "poison":
+        return max(1, mon.max_hp // 8)
+    if mon.status == "burn":
+        return max(1, mon.max_hp // 16)
+    return 0
+
+def _score_protection_move(state, attacker, defender, move, rng):
+    name = _move_name(move)
+    if name not in PROTECTION_MOVES:
+        return None
+    if _is_incapacitated(attacker):
+        return -20.0
+    if attacker.current_hp <= _end_turn_damage_estimate(attacker):
+        return -10.0
+    if attacker.protect_streak >= 2:
+        return -10.0
+    if attacker.protect_streak >= 1 and _random_chance(rng, 0.50):
+        return -10.0
+
+    if name == "endure":
+        player_can_faint = _player_kill_hits(defender, attacker, state.field) == 1
+        if player_can_faint:
+            bonus = 0.0
+            if attacker.item in {"salac-berry", "liechi-berry", "petaya-berry", "ganlon-berry", "apicot-berry", "starf-berry"} or _has_move_named(attacker, {"flail", "reversal", "endeavor", "rage-fist"}):
+                bonus += 2.0
+            if attacker.ability.lower().replace(" ", "-") == "speed-boost":
+                bonus += 1.0
+                if _has_move_named(attacker, {"baton-pass"}):
+                    bonus += 1.0
+            return bonus if bonus else (-1.0 if _random_chance(rng, 0.50) else 0.0)
+        return -1.0 if _random_chance(rng, 0.50) else 0.0
+    return 0.0
+
 def _score_status_move(state, attacker, defender, move, rng=None):
     """Null scoring for sleep, poison, paralysis, burn/frostbite, and confusion."""
     name = _move_name(move)
@@ -571,7 +609,7 @@ def score_enemy_move(state, action, *, side="enemy", rng=None):
     if self_destruct_score is not None:
         return self_destruct_score
 
-    if move.category == "status" or move.power <= 0:
+    protection_score = _score_protection_move(state, mon, opponent, move, rng)\n    if protection_score is not None:\n        return protection_score\n\n    if move.category == "status" or move.power <= 0:
         field_score = _score_field_control_move(state, mon, opponent, move, side, rng)
         if field_score is not None:
             return field_score
