@@ -335,6 +335,39 @@ def _setup_category(move):
     if name in DEFENSIVE_SETUP_MOVES: return "defensive"
     return None
 
+def _score_stat_lowering_move(state, attacker, defender, move, rng):
+    """Null scoring for speed, stat, and accuracy-lowering moves."""
+    stat = move.effect_data.get("stat") if move.effect == "stat_change" else None
+
+    if stat == "spe":
+        if attacker.effective_stat("spe") < defender.effective_stat("spe"):
+            score = 1.0 if defender.status is not None else 0.0
+        else:
+            score = -2.0
+        if move.hits_min > 1 or move.hits_max > 1:
+            score += 1.0
+        return score
+
+    if stat == "accuracy":
+        if defender.stat_stages.get("accuracy", 0) <= -2 and _random_chance(rng, 0.80):
+            return -2.0
+        if attacker.current_hp > attacker.max_hp * 0.90:
+            return 2.0 if _random_chance(rng, 0.80) else 0.0
+        if attacker.current_hp > attacker.max_hp * 0.60:
+            return 1.0 if _random_chance(rng, 0.80) else 0.0
+        return -1.0
+
+    if stat in {"atk", "def", "spa", "spd"}:
+        if stat in {"atk", "spa"}:
+            category = "physical" if stat == "atk" else "special"
+            if not _player_has_attack_category(defender, category):
+                return -2.0
+        if defender.stat_stages.get(stat, 0) <= -1:
+            return -2.0 if _random_chance(rng, 0.80) else 0.0
+        return 1.0 if _random_chance(rng, 0.20) else 0.0
+
+    return None
+
 def _score_setup_move(state, mon, player, move, rng):
     name = _move_name(move)
 
@@ -431,6 +464,9 @@ def score_enemy_move(state, action, *, side="enemy", rng=None):
     move = mon.moves[action["move_index"]]
 
     if move.category == "status" or move.power <= 0:
+        stat_score = _score_stat_lowering_move(state, mon, opponent, move, rng)
+        if stat_score is not None:
+            return stat_score
         setup_score = _score_setup_move(state, mon, opponent, move, rng)
         if setup_score is not None:
             return setup_score
