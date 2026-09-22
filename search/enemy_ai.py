@@ -250,6 +250,60 @@ def _score_pivot_move(state, attacker, defender, move, rng):
 
     return 6.0
 
+SPECIAL_TACTICAL_MOVES = {"fake-out", "feint", "upper-hand", "sucker-punch", "thunderclap", "pursuit", "counter", "mirror-coat", "metal-burst"}
+
+def _score_special_tactical_move(state, attacker, defender, move, rng):
+    name = _move_name(move)
+    if name not in SPECIAL_TACTICAL_MOVES:
+        return None
+
+    faster = attacker.effective_stat("spe") >= defender.effective_stat("spe")
+    can_ko = _player_kill_hits(attacker, defender, state.field) == 1
+
+    if name == "fake-out":
+        # Fake Out's Null priority is intentionally strong; if the target
+        # cannot be flinched and the move cannot KO, the documented AI avoids it.
+        if "flinch-immune" in defender.volatile and not can_ko:
+            return -30.0
+        return 9.0
+
+    if name == "feint":
+        if "protect" in defender.volatile:
+            return 13.0 if _random_chance(rng, 0.10) else 6.0
+        return 6.0 if can_ko else 0.0
+
+    if name == "upper-hand":
+        if "priority" in defender.volatile:
+            return 13.0 if _random_chance(rng, 0.10) else 0.0
+        return 0.0
+
+    if name in {"sucker-punch", "thunderclap"}:
+        if "used-priority-last-turn" in attacker.volatile and _random_chance(rng, 0.66):
+            return -20.0
+        if not faster and can_ko:
+            return 11.0
+        return 0.0
+
+    if name == "pursuit":
+        if "negative-ability-combo" in defender.volatile:
+            return 12.0
+        if can_ko:
+            return 11.0
+        if defender.current_hp < defender.max_hp * 0.20:
+            return 10.0
+        if defender.current_hp < defender.max_hp * 0.40:
+            return 8.0 if _random_chance(rng, 0.50) else 0.0
+        return 3.0 if faster else 0.0
+
+    if name in {"counter", "mirror-coat", "metal-burst"}:
+        if "last-damage" not in defender.volatile:
+            return 0.0
+        if name == "counter" and "last-physical" not in defender.volatile:
+            return -20.0
+        if name == "mirror-coat" and "last-special" not in defender.volatile:
+            return -20.0
+        return 6.0
+
 UTILITY_EDGE_MOVES = {"taunt", "encore", "disable", "substitute", "destiny-bond"}
 
 def _player_has_status_move(pokemon):
@@ -741,6 +795,10 @@ def score_enemy_move(state, action, *, side="enemy", rng=None):
     mon = state.active_mon(side)
     opponent = state.active_mon(state.other_side(side))
     move = mon.moves[action["move_index"]]
+
+    tactical_score = _score_special_tactical_move(state, mon, opponent, move, rng)
+    if tactical_score is not None:
+        return tactical_score
 
     self_destruct_score = _score_self_destruct_move(state, mon, opponent, move, side, rng)
     if self_destruct_score is not None:
