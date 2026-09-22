@@ -522,6 +522,10 @@ def score_enemy_move(state, action, *, side="enemy", rng=None):
             return setup_score
         return _score_status_move(state, mon, opponent, move, rng)
 
+    hazard_score = _score_hazard_move(state, mon, opponent, move, side, rng)
+    if hazard_score is not None:
+        return hazard_score
+
     damage = _max_damage(mon, opponent, move, state.field)
     if damage <= 0:
         return 0.0
