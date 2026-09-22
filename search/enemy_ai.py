@@ -136,10 +136,19 @@ def choose_switch_in(state, *, side="enemy", rng=None):
             best, best_score = index, score
     return best
 
-def score_enemy_move(state, action, *, side="enemy"):
-    """Initial generic Null move score; detailed move-specific rules come later."""
+def score_enemy_move(state, action, *, side="enemy", rng=None):
+    """Generic Null move score.
+
+    The documented Null baseline is:
+      non-attacking utility: +6
+      high-damage move: +6, occasionally +8
+      slow kill (2HKO): +9/+11
+      fast kill (OHKO): +12/+14
+
+    For the first implementation, speed determines the lower/higher kill tier.
+    """
     if action["type"] == "switch":
-        return float(switch_in_score(state, action["target_index"], side=side))
+        return float(switch_in_score(state, action["target_index"], side=side, rng=rng))
 
     mon = state.active_mon(side)
     opponent = state.active_mon(state.other_side(side))
@@ -152,27 +161,31 @@ def score_enemy_move(state, action, *, side="enemy"):
     if damage <= 0:
         return 0.0
 
+    faster = mon.effective_stat("spe") >= opponent.effective_stat("spe")
+
     if damage >= opponent.current_hp:
-        return 12.0
+        return 14.0 if faster else 12.0
 
     hits = math.ceil(opponent.current_hp / damage)
     if hits == 2:
-        return 9.0
+        return 11.0 if faster else 9.0
+
+    # Generic high-damage baseline. "High damage" is represented by the
+    # strongest available damaging move on the active Pokemon.
+    best_damage = _best_damage(mon, opponent, state.field)
+    if damage == best_damage:
+        roller = rng if rng is not None else random.Random()
+        return 8.0 if roller.random() < 0.25 else 6.0
 
     effectiveness = type_effectiveness(move.type, opponent.species.types)
-    score = 3.0 + 2.0 * effectiveness
-    if mon.effective_stat("spe") > opponent.effective_stat("spe"):
-        score += 1.0
-    if move.accuracy is not None:
-        score *= move.accuracy / 100.0
-    return score
+    return 3.0 + 2.0 * effectiveness
 
-def enemy_action_distribution(state, *, side="enemy"):
+def enemy_action_distribution(state, *, side="enemy", rng=None):
     """Return the highest-scoring Null actions with uniform tie probability."""
     actions = state.legal_actions(side)
     if not actions:
         return []
-    scores = [score_enemy_move(state, action, side=side) for action in actions]
+    scores = [score_enemy_move(state, action, side=side, rng=rng) for action in actions]
     best = max(scores)
     tied = [action for action, score in zip(actions, scores) if score == best]
     probability = 1.0 / len(tied)
@@ -180,7 +193,7 @@ def enemy_action_distribution(state, *, side="enemy"):
 
 def choose_enemy_action(state, *, side="enemy", rng=None):
     """Sample one action from the current Null AI policy."""
-    distribution = enemy_action_distribution(state, side=side)
+    distribution = enemy_action_distribution(state, side=side, rng=rng)
     if not distribution:
         return None
     roller = rng if rng is not None else random.Random()
