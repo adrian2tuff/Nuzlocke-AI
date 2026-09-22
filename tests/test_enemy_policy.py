@@ -80,6 +80,7 @@ class TestEnemyPolicy(unittest.TestCase):
         enemy = make_mon("Enemy", ["fire"], [
             move("blast", "fire", "special", 500),
         ])
+        enemy.stat_stages["spe"] = -6
         state = BattleState([player], [enemy])
         action = {"type": "move", "move_index": 0}
         self.assertEqual(score_enemy_move(state, action), 12.0)
@@ -331,7 +332,6 @@ class TestEnemyPolicy(unittest.TestCase):
     def test_final_gambit_gets_seven_when_fast_and_will_die(self):
         player = make_mon("Player", ["normal"], [move("tackle", "normal", "physical", 500)])
         enemy = make_mon("Enemy", ["normal"], [move("final-gambit", "fighting", "special", 0)])
-        enemy.stat_stages["spe"] = -6
         state = BattleState([player], [enemy, make_mon("Bench", ["normal"], [])])
         self.assertEqual(score_enemy_move(state, {"type": "move", "move_index": 0}), 7.0)
 
