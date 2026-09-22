@@ -16,8 +16,8 @@ class Field:
     terrain: str | None = None
     terrain_turns: int = 0
     hazards: dict = dc_field(default_factory=lambda: {
-        "player": {"stealth_rock": False, "spikes": 0, "toxic_spikes": 0},
-        "enemy": {"stealth_rock": False, "spikes": 0, "toxic_spikes": 0},
+        "player": {"stealth_rock": False, "spikes": 0, "toxic_spikes": 0, "sticky_web": False},
+        "enemy": {"stealth_rock": False, "spikes": 0, "toxic_spikes": 0, "sticky_web": False},
     })
     screens: dict = dc_field(default_factory=lambda: {
         "player": {"reflect": 0, "light_screen": 0},
