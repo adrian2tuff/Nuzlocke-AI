@@ -176,6 +176,18 @@ Current coverage includes:
 
 The Null AI is implemented as a policy layer on top of the battle engine. This keeps battle mechanics separate from the question of what an enemy trainer chooses to do.
 
+### Phase 4.5 — Null mechanics and data integration
+
+Null uses Generation 9 mechanics unless the Null mechanic document explicitly overrides them. The battle engine is being updated with a dedicated `engine/null_mechanics.py` layer so these overrides stay separate from the Gen 9 baseline.
+
+Current Null-specific mechanics implemented or being integrated:
+
+- AI/player critical-hit rates.
+- 75% paralysis Speed reduction.
+- 50% matching-type Electric / Grassy / Psychic Terrain damage boost.
+
+Next Null mechanics are being added incrementally with regression tests, followed by NullDex data integration. The mechanic source also defines Null-specific abilities, held-item behavior, IV generation, Rotom forms/moves, and progression level caps.
+
 ### Phase 5 — Doubles battle foundation
 
 Before implementing the Null doubles rules, the engine needs a proper doubles model while preserving the existing 1v1 API.
@@ -243,6 +255,6 @@ The planner should be able to search across multiple battles rather than treatin
 
 ## Immediate priority
 
-The next implementation step is **the doubles battle foundation**. Do not add individual doubles AI rules until the engine can represent and resolve doubles battles correctly.
+The next implementation step is **Null mechanics completeness and NullDex integration**. We will finish the battle-relevant Null overrides in small tested slices before starting the doubles foundation. Do not add individual doubles AI rules until the engine can represent and resolve doubles battles correctly.
 
 Mechanics completeness and correctness come before deeper search optimization. Every major engine change should add regression tests and preserve the existing single-battle test suite.
