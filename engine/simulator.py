@@ -26,7 +26,12 @@ from .mechanics import (
 )
 from .pokemon import Pokemon, Move
 from .state import BattleState
-from .null_mechanics import crit_chance as null_crit_chance, prevents_critical_hit, micle_accuracy_multiplier
+from .null_mechanics import (
+    crit_chance as null_crit_chance,
+    prevents_critical_hit,
+    micle_accuracy_multiplier,
+    should_consume_confusion_berry,
+)
 
 CRIT_CHANCE = 1 / 24        # standard (non-high-crit-ratio) crit chance, Gen 6+
 HIGH_CRIT_CHANCE = 1 / 8
@@ -66,6 +71,17 @@ def _apply_stat_change(target: Pokemon, stat: str, stages: int, log: list[str]) 
         log.append(f"{target.display_name()}'s {stat} {direction} to {new:+d}!")
     else:
         log.append(f"{target.display_name()}'s {stat} won't go {'higher' if stages > 0 else 'lower'}!")
+
+
+def _apply_null_confusion_berry(mon: Pokemon, log: list[str]) -> None:
+    if mon.is_fainted or not should_consume_confusion_berry(mon):
+        return
+    healing = max(1, mon.max_hp // 2)
+    mon.current_hp = min(mon.max_hp, mon.current_hp + healing)
+    mon.item = None
+    mon.volatile.add("confusion")
+    log.append(f"{mon.display_name()} ate its berry and restored {healing} HP!")
+    log.append(f"{mon.display_name()} became confused!")
 
 
 def _apply_status_damage(mon: Pokemon, log: list[str]) -> None:
@@ -652,6 +668,8 @@ def step(
     if not new_state.is_terminal():
         _apply_status_damage(new_state.player_mon, log)
         _apply_status_damage(new_state.enemy_mon, log)
+        _apply_null_confusion_berry(new_state.player_mon, log)
+        _apply_null_confusion_berry(new_state.enemy_mon, log)
         _apply_end_of_turn_field(new_state, log)
         for mon in (new_state.player_mon, new_state.enemy_mon):
             if not mon.is_fainted and mon.item == "leftovers":
