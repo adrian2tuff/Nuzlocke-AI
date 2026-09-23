@@ -187,10 +187,11 @@ Current Null-specific mechanics implemented or being integrated:
 - 50% matching-type Electric / Grassy / Psychic Terrain damage boost.
 - Sleep turn count resets when a sleeping Pokemon re-enters battle.
 - Sheer Force retains its normal 1.3× damage boost while suppressing eligible secondary effects.
+- Null battle PP: Player moves have 1 PP; AI moves have 8 PP. This is enabled through the explicit `BattleState(ruleset="null")` ruleset so existing baseline tests and tooling remain unchanged.
 
 A recent regression check also ensures Null terrain/ability/item modifiers remain isolated from unrelated damage modifiers.
 
-Next Null mechanics are being added incrementally with regression tests, followed by NullDex data integration. The mechanic source also defines Null-specific abilities, held-item behavior, IV generation, Rotom forms/moves, and progression level caps.
+Null battle PP is now wired into the battle-state ruleset with regression coverage. Next mechanics are being added incrementally with regression tests, followed by NullDex data integration. The mechanic source also defines Null-specific abilities, held-item behavior, IV generation, Rotom forms/moves, and progression level caps.
 
 ### Phase 5 — Doubles battle foundation
 
