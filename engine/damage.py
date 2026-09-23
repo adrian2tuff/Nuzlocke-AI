@@ -9,7 +9,8 @@ code) chooses to do, not something the engine decides for you.
 
 from __future__ import annotations
 
-from .mechanics import type_effectiveness\nfrom .null_mechanics import terrain_damage_multiplier
+from .mechanics import type_effectiveness
+from .null_mechanics import terrain_damage_multiplier
 from .pokemon import Pokemon, Move
 
 # The 16 damage-roll multipliers the mainline games use (85..100, /100).
@@ -73,7 +74,7 @@ def damage_rolls(
         and move.effect_chance > 0
     )
     if sheer_force:
-        modifier *= 1.3
+        modifier *= terrain_damage_multiplier()
     if is_stab(move, attacker):
         modifier *= STAB_MULTIPLIER
     if is_crit:
@@ -95,14 +96,14 @@ def damage_rolls(
     grounded = "flying" not in attacker.species.types and attacker.ability != "levitate"
     if grounded:
         if terrain == "electric" and move.type == "electric":
-            modifier *= 1.3
+            modifier *= terrain_damage_multiplier()
         elif terrain == "grassy" and move.type == "grass":
-            modifier *= 1.3
+            modifier *= terrain_damage_multiplier()
         elif terrain == "psychic" and move.type == "psychic":
-            modifier *= 1.3
+            modifier *= terrain_damage_multiplier()
 
     if attacker.item == "life-orb":
-        modifier *= 1.3
+        modifier *= terrain_damage_multiplier()
 
     type_mult = type_effectiveness(move.type, defender.species.types)
     modifier *= type_mult
