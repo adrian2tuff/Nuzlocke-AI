@@ -25,7 +25,7 @@ from .mechanics import (
     clamp_stage, STAT_STAGE_MULTIPLIER, STATUS_DAMAGE_FRACTION, type_effectiveness,
 )
 from .pokemon import Pokemon, Move
-from .state import BattleState
+from .state import BattleState\nfrom .null_mechanics import crit_chance as null_crit_chance
 
 CRIT_CHANCE = 1 / 24        # standard (non-high-crit-ratio) crit chance, Gen 6+
 HIGH_CRIT_CHANCE = 1 / 8
@@ -198,7 +198,7 @@ def resolve_move(
         _apply_move_effect(move, attacker, defender, log, field=field, attacker_side=attacker_side, rng=rng)
         return
 
-    is_crit = force_crit if force_crit is not None else (rng.random() < _crit_chance(move))
+    is_crit = force_crit if force_crit is not None else (rng.random() < _crit_chance(move, attacker_side))
     rolls = damage_rolls(attacker, defender, move, field, is_crit=is_crit)
     if force_hit_count is not None:
         hit_count = force_hit_count
