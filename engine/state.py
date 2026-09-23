@@ -7,6 +7,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field as dc_field
 
 from .pokemon import Pokemon
+from .null_mechanics import initialize_null_pp
 
 
 @dataclass
@@ -36,6 +37,14 @@ class BattleState:
     field: Field = dc_field(default_factory=Field)
     turn: int = 0
     log: list[str] = dc_field(default_factory=list)
+    ruleset: str = "gen9"
+
+    def __post_init__(self) -> None:
+        if self.ruleset not in {"gen9", "null"}:
+            raise ValueError(f"Unknown battle ruleset: {self.ruleset}")
+        if self.ruleset == "null":
+            initialize_null_pp(self.player_team, "player")
+            initialize_null_pp(self.enemy_team, "enemy")
 
     @property
     def player_mon(self) -> Pokemon:
