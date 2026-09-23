@@ -190,6 +190,7 @@ Current Null-specific mechanics implemented or being integrated:
 - Null battle PP: Player moves have 1 PP; AI moves have 8 PP. This is enabled through the explicit `BattleState(ruleset="null")` ruleset so existing baseline tests and tooling remain unchanged.
 - Leaf Guard and Magma Armor prevent critical hits under the Null ruleset.
 - Micle Berry gives a one-time 1.5× accuracy multiplier when the holder is at or below 1/4 HP, then is consumed.
+- Figy, Wiki, Mago, Aguav, and Iapapa Berries trigger at or below 1/4 HP, restore 1/2 max HP, are consumed, and inflict confusion.
 
 A recent regression check also ensures Null terrain/ability/item modifiers remain isolated from unrelated damage modifiers.
 
