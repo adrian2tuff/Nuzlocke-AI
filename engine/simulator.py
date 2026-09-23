@@ -26,7 +26,7 @@ from .mechanics import (
 )
 from .pokemon import Pokemon, Move
 from .state import BattleState
-from .null_mechanics import crit_chance as null_crit_chance
+from .null_mechanics import crit_chance as null_crit_chance, prevents_critical_hit
 
 CRIT_CHANCE = 1 / 24        # standard (non-high-crit-ratio) crit chance, Gen 6+
 HIGH_CRIT_CHANCE = 1 / 8
@@ -209,7 +209,7 @@ def resolve_move(
         _apply_move_effect(move, attacker, defender, log, field=field, attacker_side=attacker_side, rng=rng)
         return
 
-    is_crit = force_crit if force_crit is not None else (rng.random() < _crit_chance(move, attacker_side))
+    is_crit = False if prevents_critical_hit(defender.ability) else (force_crit if force_crit is not None else (rng.random() < _crit_chance(move, attacker_side)))
     rolls = damage_rolls(attacker, defender, move, field, is_crit=is_crit)
     if force_hit_count is not None:
         hit_count = force_hit_count
@@ -741,7 +741,7 @@ def _single_move_branches(
         if not hit or move.category == "status" or move.power == 0:
             branches.append((p_hit, hit, False, None))
             continue
-        crit_p = _crit_chance(move)
+        crit_p = 0.0 if prevents_critical_hit(defender.ability) else _crit_chance(move)
         for p_crit, crit in ((crit_p, True), (1 - crit_p, False)):
             if p_crit == 0:
                 continue
@@ -835,7 +835,7 @@ def _enumerate_multi_hit_move(
             crit_branches = [
                 (1.0, False),
             ]
-            crit_probability = _crit_chance(m)
+            crit_probability = 0.0 if prevents_critical_hit(d.ability) else _crit_chance(m)
             if crit_probability > 0:
                 crit_branches = [
                     (1.0 - crit_probability, False),
