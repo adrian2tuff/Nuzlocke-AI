@@ -57,3 +57,11 @@ def initialize_null_pp(team: list, side: str) -> None:
     for pokemon in team:
         for move in pokemon.moves:
             move.pp = pp
+
+
+NULL_CRIT_IMMUNITY_ABILITIES = {"leaf-guard", "magma-armor"}
+
+
+def prevents_critical_hit(ability: str | None) -> bool:
+    """Null-specific abilities that make the holder immune to critical hits."""
+    return ability in NULL_CRIT_IMMUNITY_ABILITIES
