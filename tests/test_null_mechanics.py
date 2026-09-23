@@ -1,7 +1,7 @@
 import unittest
 
 from engine.damage import damage_rolls
-from engine.null_mechanics import crit_chance, paralysis_speed_multiplier, terrain_damage_multiplier
+from engine.null_mechanics import crit_chance, paralysis_speed_multiplier, terrain_damage_multiplier, prevents_critical_hit
 from engine.pokemon import Move
 from engine.state import BattleState
 from environment.loader import DataStore
@@ -23,6 +23,11 @@ class TestNullMechanics(unittest.TestCase):
             enemy_team=DataStore().build_team("rival_1"),
         )
         self.assertNotEqual(state.player_mon.moves[0].pp, 1)
+
+    def test_null_leaf_guard_and_magma_armor_prevent_crits(self):
+        self.assertTrue(prevents_critical_hit("leaf-guard"))
+        self.assertTrue(prevents_critical_hit("magma-armor"))
+        self.assertFalse(prevents_critical_hit("intimidate"))
 
     def test_null_crit_rates(self):
         self.assertAlmostEqual(crit_chance("player", 0), 1 / 16)
