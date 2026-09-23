@@ -1,7 +1,7 @@
 import unittest
 
 from engine.damage import damage_rolls
-from engine.null_mechanics import crit_chance, paralysis_speed_multiplier, terrain_damage_multiplier, prevents_critical_hit
+from engine.null_mechanics import crit_chance, paralysis_speed_multiplier, terrain_damage_multiplier, prevents_critical_hit, micle_accuracy_multiplier
 from engine.pokemon import Move
 from engine.state import BattleState
 from environment.loader import DataStore
@@ -23,6 +23,19 @@ class TestNullMechanics(unittest.TestCase):
             enemy_team=DataStore().build_team("rival_1"),
         )
         self.assertNotEqual(state.player_mon.moves[0].pp, 1)
+
+    def test_null_micle_berry_accuracy_boost(self):
+        state = BattleState(
+            player_team=DataStore().build_team("player_demo_team"),
+            enemy_team=DataStore().build_team("rival_1"),
+            ruleset="null",
+        )
+        mon = state.player_mon
+        mon.item = "micle-berry"
+        mon.current_hp = mon.max_hp // 4
+        self.assertEqual(micle_accuracy_multiplier(mon), 1.5)
+        mon.current_hp = max(1, mon.max_hp // 4 + 1)
+        self.assertEqual(micle_accuracy_multiplier(mon), 1.0)
 
     def test_null_leaf_guard_and_magma_armor_prevent_crits(self):
         self.assertTrue(prevents_critical_hit("leaf-guard"))
