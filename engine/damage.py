@@ -9,7 +9,7 @@ code) chooses to do, not something the engine decides for you.
 
 from __future__ import annotations
 
-from .mechanics import type_effectiveness
+from .mechanics import type_effectiveness\nfrom .null_mechanics import terrain_damage_multiplier
 from .pokemon import Pokemon, Move
 
 # The 16 damage-roll multipliers the mainline games use (85..100, /100).
