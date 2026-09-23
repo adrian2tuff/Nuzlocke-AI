@@ -186,6 +186,7 @@ Current Null-specific mechanics implemented or being integrated:
 - 75% paralysis Speed reduction.
 - 50% matching-type Electric / Grassy / Psychic Terrain damage boost.
 - Sleep turn count resets when a sleeping Pokemon re-enters battle.
+- Sheer Force retains its normal 1.3× damage boost while suppressing eligible secondary effects.
 
 A recent regression check also ensures Null terrain/ability/item modifiers remain isolated from unrelated damage modifiers.
 
