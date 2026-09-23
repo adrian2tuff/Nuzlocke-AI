@@ -45,3 +45,15 @@ def paralysis_speed_multiplier() -> float:
 def terrain_damage_multiplier() -> float:
     """Null matching-type terrain damage boost."""
     return 1.5
+
+
+NULL_PLAYER_PP = 1
+NULL_AI_PP = 8
+
+
+def initialize_null_pp(team: list, side: str) -> None:
+    """Set every move's battle PP to Null's side-specific value."""
+    pp = NULL_PLAYER_PP if side == PLAYER else NULL_AI_PP
+    for pokemon in team:
+        for move in pokemon.moves:
+            move.pp = pp
