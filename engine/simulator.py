@@ -205,6 +205,19 @@ def resolve_move(
         log.append(f"{attacker.display_name()} flinched and couldn't move!")
         return
 
+    # Confusion: 50% chance to lose the turn and hit itself with a 40-power
+    # typeless physical attack. Null only changes Berserk Gene's self-hit
+    # power; ordinary confusion remains the Gen 9 baseline.
+    if "confusion" in attacker.volatile:
+        if rng.random() < 0.5:
+            self_hit_power = 60 if attacker.ability == "berserk-gene" else 40
+            self_damage = max(1, ((2 * attacker.level // 5 + 2) * self_hit_power * attacker.effective_stat("atk") // max(1, attacker.effective_stat("def"))) // 50 + 2)
+            attacker.current_hp = max(0, attacker.current_hp - self_damage)
+            log.append(f"{attacker.display_name()} hurt itself in its confusion! (-{self_damage} HP)")
+            if attacker.is_fainted:
+                log.append(f"{attacker.display_name()} fainted!")
+            return
+
     if move.type == "ground" and defender.ability == "levitate":
         log.append(f"{defender.display_name()} is immune to {move.name} because of Levitate!")
         return
