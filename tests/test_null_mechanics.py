@@ -32,6 +32,27 @@ class TestNullMechanics(unittest.TestCase):
         mon.status = "paralysis"
         self.assertAlmostEqual(mon.effective_stat("spe"), normal_speed * 0.25)
 
+    def test_null_sleep_turns_reset_on_reentry(self):
+        state = BattleState(
+            player_team=DataStore().build_team("player_demo_team"),
+            enemy_team=DataStore().build_team("rival_1"),
+        )
+        mon = state.player_mon
+        mon.status = "sleep"
+        mon.status_turns = 2
+
+        from engine.simulator import _apply_switch
+        log = []
+        _apply_switch(state, "player", 1, log)
+
+        incoming = state.player_mon
+        incoming.status = "sleep"
+        incoming.status_turns = 2
+        _apply_switch(state, "player", 0, log)
+
+        self.assertEqual(state.player_mon.status, "sleep")
+        self.assertEqual(state.player_mon.status_turns, 0)
+
     def test_null_terrain_boost_is_50_percent(self):
         self.assertEqual(terrain_damage_multiplier(), 1.5)
 
