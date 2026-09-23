@@ -26,7 +26,7 @@ from .mechanics import (
 )
 from .pokemon import Pokemon, Move
 from .state import BattleState
-from .null_mechanics import crit_chance as null_crit_chance, prevents_critical_hit
+from .null_mechanics import crit_chance as null_crit_chance, prevents_critical_hit, micle_accuracy_multiplier
 
 CRIT_CHANCE = 1 / 24        # standard (non-high-crit-ratio) crit chance, Gen 6+
 HIGH_CRIT_CHANCE = 1 / 8
@@ -53,7 +53,7 @@ def _accuracy_check(move: Move, attacker: Pokemon, defender: Pokemon, rng: rando
         return True
     from .mechanics import ACCURACY_STAGE_MULTIPLIER
     stage = clamp_stage(attacker.stat_stages.get("accuracy", 0) - defender.stat_stages.get("evasion", 0))
-    chance = move.accuracy * ACCURACY_STAGE_MULTIPLIER[stage] / 100
+    chance = move.accuracy * ACCURACY_STAGE_MULTIPLIER[stage] * micle_accuracy_multiplier(attacker) / 100
     return rng.random() < chance
 
 
@@ -200,6 +200,9 @@ def resolve_move(
             return
 
     hit = force_hit if force_hit is not None else _accuracy_check(move, attacker, defender, rng)
+    if hit and attacker.item == "micle-berry" and attacker.hp_fraction <= 0.25:
+        attacker.item = None
+        log.append(f"{attacker.display_name()} consumed its Micle Berry!")
     if not hit:
         log.append(f"{attacker.display_name()}'s {move.name} missed!")
         return
@@ -731,7 +734,7 @@ def _single_move_branches(
     else:
         from .mechanics import ACCURACY_STAGE_MULTIPLIER
         stage = clamp_stage(attacker.stat_stages.get("accuracy", 0) - defender.stat_stages.get("evasion", 0))
-        p_hit = min(1.0, move.accuracy * ACCURACY_STAGE_MULTIPLIER[stage] / 100)
+        p_hit = min(1.0, move.accuracy * ACCURACY_STAGE_MULTIPLIER[stage] * micle_accuracy_multiplier(attacker) / 100)
         hit_branches = [(p_hit, True), (1 - p_hit, False)]
 
     branches = []
