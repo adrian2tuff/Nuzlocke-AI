@@ -42,8 +42,10 @@ _ENUM_RNG = random.Random(0)
 # Deterministic single-path resolution (used by step())
 # ===========================================================================
 
-def _crit_chance(move: Move) -> float:
-    return HIGH_CRIT_CHANCE if move.crit_ratio > 0 else CRIT_CHANCE
+def _crit_chance(move: Move, side: str | None = None) -> float:
+    """Return the critical-hit chance using Null side-specific rates."""
+    crit_stage = 1 if move.crit_ratio > 0 else 0
+    return null_crit_chance(side or "player", crit_stage)
 
 
 def _accuracy_check(move: Move, attacker: Pokemon, defender: Pokemon, rng: random.Random) -> bool:
