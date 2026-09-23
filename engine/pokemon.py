@@ -97,14 +97,14 @@ class Pokemon:
         return self._stats[stat]
 
     def effective_stat(self, stat: str) -> float:
-        from .mechanics import STAT_STAGE_MULTIPLIER, STATUS_ATK_MULTIPLIER, STATUS_SPEED_MULTIPLIER
+        from .mechanics import STAT_STAGE_MULTIPLIER, STATUS_ATK_MULTIPLIER
         if stat == "hp":
             return self.max_hp
         value = self.base_stat(stat) * STAT_STAGE_MULTIPLIER[clamp_stage(self.stat_stages.get(stat, 0))]
         if stat == "atk" and self.status == "burn":
             value *= STATUS_ATK_MULTIPLIER["burn"]
         if stat == "spe" and self.status == "paralysis":
-            value *= STATUS_SPEED_MULTIPLIER["paralysis"]
+            value *= paralysis_speed_multiplier()
         if self.item == "choice-band" and stat == "atk":
             value *= 1.5
         elif self.item == "choice-specs" and stat == "spa":
