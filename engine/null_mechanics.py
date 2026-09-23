@@ -65,3 +65,10 @@ NULL_CRIT_IMMUNITY_ABILITIES = {"leaf-guard", "magma-armor"}
 def prevents_critical_hit(ability: str | None) -> bool:
     """Null-specific abilities that make the holder immune to critical hits."""
     return ability in NULL_CRIT_IMMUNITY_ABILITIES
+
+
+def micle_accuracy_multiplier(pokemon) -> float:
+    """Null Micle Berry: 1.5x accuracy at or below 1/4 HP, once."""
+    if pokemon.item == "micle-berry" and pokemon.hp_fraction <= 0.25:
+        return 1.5
+    return 1.0
