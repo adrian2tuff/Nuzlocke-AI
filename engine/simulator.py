@@ -499,6 +499,10 @@ def _apply_switch(state: BattleState, side: str, target_index: int, log: list[st
     state.set_active_index(side, target_index)
     log.append(f"{'You' if side == 'player' else 'Opponent'} sent out {incoming.display_name()}!")
 
+    # Null: re-entering battle resets the sleep-turn counter, but does not cure sleep.
+    if incoming.status == "sleep":
+        incoming.status_turns = 0
+
     hazards = state.field.hazards[side]
     if incoming.is_fainted:
         return
