@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from .mechanics import NATURES, NATURE_MULTIPLIER, clamp_stage
+from .mechanics import NATURES, NATURE_MULTIPLIER, clamp_stage\nfrom .null_mechanics import paralysis_speed_multiplier
 
 
 @dataclass
