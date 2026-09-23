@@ -25,7 +25,8 @@ from .mechanics import (
     clamp_stage, STAT_STAGE_MULTIPLIER, STATUS_DAMAGE_FRACTION, type_effectiveness,
 )
 from .pokemon import Pokemon, Move
-from .state import BattleState\nfrom .null_mechanics import crit_chance as null_crit_chance
+from .state import BattleState
+from .null_mechanics import crit_chance as null_crit_chance
 
 CRIT_CHANCE = 1 / 24        # standard (non-high-crit-ratio) crit chance, Gen 6+
 HIGH_CRIT_CHANCE = 1 / 8
@@ -112,7 +113,15 @@ def resolve_move(
     pp_cost = 2 if defender.ability == "pressure" and move.effect_data.get("target") != "self" else 1
     move.pp = max(0, move.pp - pp_cost)
 
-    # Track the most recent damaging hit for Counter/Mirror Coat/Metal Burst.\n    # These markers persist until another damaging move replaces them, which\n    # lets the next actor evaluate the previous hit even across turn order.\n    attacker.volatile.discard("last-damage")\n    attacker.volatile.discard("last-physical")\n    attacker.volatile.discard("last-special")\n    attacker.volatile.discard("last-move")\n    attacker.volatile.add("last-move:" + move.name.lower().replace(" ", "-"))\n
+    # Track the most recent damaging hit for Counter/Mirror Coat/Metal Burst.
+    # These markers persist until another damaging move replaces them, which
+    # lets the next actor evaluate the previous hit even across turn order.
+    attacker.volatile.discard("last-damage")
+    attacker.volatile.discard("last-physical")
+    attacker.volatile.discard("last-special")
+    attacker.volatile.discard("last-move")
+    attacker.volatile.add("last-move:" + move.name.lower().replace(" ", "-"))
+
     # Choice items lock onto the selected move until the Pokemon switches.
     if attacker.item in ("choice-band", "choice-specs", "choice-scarf") and attacker.choice_lock is None and move.category != "status":
         attacker.choice_lock = attacker.moves.index(move)
