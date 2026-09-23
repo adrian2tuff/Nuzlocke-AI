@@ -129,8 +129,12 @@ class Dex:
         key = self._key(name)
         try:
             data = self._trainer_data[key]
-        except KeyError as exc:
-            raise DexError(f"Unknown trainer: {name}") from exc
+        except KeyError:
+            # Trainer IDs in the source data may use underscores.
+            try:
+                data = self._trainer_data[name.strip().lower()]
+            except KeyError as exc:
+                raise DexError(f"Unknown trainer: {name}") from exc
         return [
             self.pokemon(
                 species=entry["species"],
