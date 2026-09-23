@@ -8,6 +8,22 @@ from environment.loader import DataStore
 
 
 class TestNullMechanics(unittest.TestCase):
+    def test_null_battle_uses_side_specific_pp(self):
+        state = BattleState(
+            player_team=DataStore().build_team("player_demo_team"),
+            enemy_team=DataStore().build_team("rival_1"),
+            ruleset="null",
+        )
+        self.assertTrue(all(mv.pp == 1 for p in state.player_team for mv in p.moves))
+        self.assertTrue(all(mv.pp == 8 for p in state.enemy_team for mv in p.moves))
+
+    def test_default_battle_keeps_data_pp(self):
+        state = BattleState(
+            player_team=DataStore().build_team("player_demo_team"),
+            enemy_team=DataStore().build_team("rival_1"),
+        )
+        self.assertNotEqual(state.player_mon.moves[0].pp, 1)
+
     def test_null_crit_rates(self):
         self.assertAlmostEqual(crit_chance("player", 0), 1 / 16)
         self.assertAlmostEqual(crit_chance("player", 1), 1 / 8)
