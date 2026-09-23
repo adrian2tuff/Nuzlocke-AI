@@ -74,7 +74,7 @@ def damage_rolls(
         and move.effect_chance > 0
     )
     if sheer_force:
-        modifier *= 1.0
+        modifier *= 1.3
     if is_stab(move, attacker):
         modifier *= STAB_MULTIPLIER
     if is_crit:
