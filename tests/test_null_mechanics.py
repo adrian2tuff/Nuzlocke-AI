@@ -50,6 +50,36 @@ class TestNullMechanics(unittest.TestCase):
         mon.current_hp = min(mon.max_hp, mon.max_hp // 4 + 1)
         self.assertFalse(should_consume_confusion_berry(mon))
 
+    def test_null_confusion_causes_self_hit_or_failure(self):
+        from engine.simulator import resolve_move
+        state = BattleState(
+            player_team=DataStore().build_team("player_demo_team"),
+            enemy_team=DataStore().build_team("rival_1"),
+            ruleset="null",
+        )
+        mon = state.player_mon
+        mon.volatile.add("confusion")
+        move = mon.moves[0]
+        before = mon.current_hp
+        log = []
+        resolve_move(mon, state.enemy_mon, move, state.field, __import__("random").Random(1), log)
+        self.assertLess(mon.current_hp, before)
+
+    def test_null_berserk_gene_confusion_uses_60_power(self):
+        from engine.simulator import resolve_move
+        state = BattleState(
+            player_team=DataStore().build_team("player_demo_team"),
+            enemy_team=DataStore().build_team("rival_1"),
+            ruleset="null",
+        )
+        mon = state.player_mon
+        mon.ability = "berserk-gene"
+        mon.volatile.add("confusion")
+        before = mon.current_hp
+        log = []
+        resolve_move(mon, state.enemy_mon, mon.moves[0], state.field, __import__("random").Random(1), log)
+        self.assertLess(mon.current_hp, before)
+
     def test_null_confusion_berry_heals_and_confuses(self):
         from engine.simulator import _apply_null_confusion_berry
         state = BattleState(
