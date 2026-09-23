@@ -1,7 +1,7 @@
 import unittest
 
 from engine.damage import damage_rolls
-from engine.null_mechanics import crit_chance, paralysis_speed_multiplier, terrain_damage_multiplier, prevents_critical_hit, micle_accuracy_multiplier
+from engine.null_mechanics import crit_chance, paralysis_speed_multiplier, terrain_damage_multiplier, prevents_critical_hit, micle_accuracy_multiplier, should_consume_confusion_berry
 from engine.pokemon import Move
 from engine.state import BattleState
 from environment.loader import DataStore
@@ -36,6 +36,35 @@ class TestNullMechanics(unittest.TestCase):
         self.assertEqual(micle_accuracy_multiplier(mon), 1.5)
         mon.current_hp = max(1, mon.max_hp // 4 + 1)
         self.assertEqual(micle_accuracy_multiplier(mon), 1.0)
+
+    def test_null_confusion_berry_triggers_at_quarter_hp(self):
+        state = BattleState(
+            player_team=DataStore().build_team("player_demo_team"),
+            enemy_team=DataStore().build_team("rival_1"),
+            ruleset="null",
+        )
+        mon = state.player_mon
+        mon.item = "figy-berry"
+        mon.current_hp = mon.max_hp // 4
+        self.assertTrue(should_consume_confusion_berry(mon))
+        mon.current_hp = min(mon.max_hp, mon.max_hp // 4 + 1)
+        self.assertFalse(should_consume_confusion_berry(mon))
+
+    def test_null_confusion_berry_heals_and_confuses(self):
+        from engine.simulator import _apply_null_confusion_berry
+        state = BattleState(
+            player_team=DataStore().build_team("player_demo_team"),
+            enemy_team=DataStore().build_team("rival_1"),
+            ruleset="null",
+        )
+        mon = state.player_mon
+        mon.item = "figy-berry"
+        mon.current_hp = mon.max_hp // 4
+        log = []
+        _apply_null_confusion_berry(mon, log)
+        self.assertGreater(mon.current_hp, mon.max_hp // 4)
+        self.assertEqual(mon.item, None)
+        self.assertIn("confusion", mon.volatile)
 
     def test_null_leaf_guard_and_magma_armor_prevent_crits(self):
         self.assertTrue(prevents_critical_hit("leaf-guard"))
