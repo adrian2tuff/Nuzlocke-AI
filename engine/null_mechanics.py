@@ -72,3 +72,11 @@ def micle_accuracy_multiplier(pokemon) -> float:
     if pokemon.item == "micle-berry" and pokemon.hp_fraction <= 0.25:
         return 1.5
     return 1.0
+
+
+NULL_CONFUSION_BERRIES = {"figy-berry", "wiki-berry", "mago-berry", "aguav-berry", "iapapa-berry"}
+
+
+def should_consume_confusion_berry(pokemon) -> bool:
+    """Null berries activate at or below 1/4 HP."""
+    return pokemon.item in NULL_CONFUSION_BERRIES and pokemon.hp_fraction <= 0.25
