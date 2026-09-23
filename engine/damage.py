@@ -74,7 +74,7 @@ def damage_rolls(
         and move.effect_chance > 0
     )
     if sheer_force:
-        modifier *= terrain_damage_multiplier()
+        modifier *= 1.0
     if is_stab(move, attacker):
         modifier *= STAB_MULTIPLIER
     if is_crit:
@@ -103,7 +103,7 @@ def damage_rolls(
             modifier *= terrain_damage_multiplier()
 
     if attacker.item == "life-orb":
-        modifier *= terrain_damage_multiplier()
+        modifier *= 1.3
 
     type_mult = type_effectiveness(move.type, defender.species.types)
     modifier *= type_mult
