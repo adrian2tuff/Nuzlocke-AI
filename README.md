@@ -185,6 +185,9 @@ Current Null-specific mechanics implemented or being integrated:
 - AI/player critical-hit rates.
 - 75% paralysis Speed reduction.
 - 50% matching-type Electric / Grassy / Psychic Terrain damage boost.
+- Sleep turn count resets when a sleeping Pokemon re-enters battle.
+
+A recent regression check also ensures Null terrain/ability/item modifiers remain isolated from unrelated damage modifiers.
 
 Next Null mechanics are being added incrementally with regression tests, followed by NullDex data integration. The mechanic source also defines Null-specific abilities, held-item behavior, IV generation, Rotom forms/moves, and progression level caps.
 
